@@ -1,30 +1,62 @@
-# Replicate Frontend
+# 🩺 MediKey – Your Health, Just a QR Scan Away!
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+> Because your *medical history* shouldn't be *a mystery* when it matters most. 🚑🔐
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/manasvis-projects-47efb1f0/v0-replicate-frontend)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/TTGmQsg8p5f)
+Welcome to **MediKey**, a universal, AI-powered, blockchain-secured digital medical record system that keeps your health data safe, smart, and always within reach.
 
-## Overview
+---
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+## 📌 About MediKey
 
-## Deployment
+MediKey is more than just a final year project – it's a **real-world solution** to a real-world problem: *disorganized, inaccessible, and insecure health data*. With MediKey, patients can manage their medical records, get AI-powered insights, and securely share information with doctors or emergency responders.
 
-Your project is live at:
+---
 
-**[https://vercel.com/manasvis-projects-47efb1f0/v0-replicate-frontend](https://vercel.com/manasvis-projects-47efb1f0/v0-replicate-frontend)**
+## 🚀 Features
 
-## Build your app
+### 🔐 Blockchain-Backed Security
+We store your data with encryption and hash your records on the blockchain – ensuring only *you* control your information.
 
-Continue building your app on:
+### 📊 AI-Powered Insights
+MediKey uses AI/ML models to analyze your medical data and give smart health insights. Think anomaly detection and predictions that actually make sense.
 
-**[https://v0.dev/chat/projects/TTGmQsg8p5f](https://v0.dev/chat/projects/TTGmQsg8p5f)**
+### 🧬 Universal Health Profile
+Your complete medical history – reports, prescriptions, allergies, conditions – all in one beautiful, easy-to-access place.
 
-## How It Works
+### 🚨 Emergency Access
+Each user has a unique QR code that shows **critical information instantly**: blood group, allergies, conditions, and emergency contacts – life-saving in emergencies.
 
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+### 👨‍⚕️ Doctor View Mode
+Doctors can see only what you allow them to. Clean UI, focused view, no clutter.
+
+### 📂 Easy Upload & Management
+Drag, drop, done. Upload PDFs, scan reports, or type in data manually.
+
+---
+
+## 🖼️ Demo
+
+**🔗 Live Demo:** [https://medikey.vercel.app/](https://medikey.vercel.app/)
+
+
+---
+
+## 🧠 Tech Stack
+
+| Layer        | Tools Used                                |
+|--------------|--------------------------------------------|
+| Frontend     | React, Tailwind CSS                       |
+| Backend      | Node.js, Express                          |
+| Database     | MongoDB                                   |
+| AI/ML        | Python (for medical insights)             |
+| Blockchain   | Ethereum (data hashing), IPFS (storage)   |
+| Hosting      | Vercel (Frontend), Render (Backend)       |
+
+---
+
+## 🛠 How to Run Locally
+
+1. Clone this repo  
+   ```bash
+   git clone https://github.com/your-username/medikey.git
+   cd medikey
