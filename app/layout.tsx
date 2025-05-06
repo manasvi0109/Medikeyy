@@ -13,6 +13,7 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "MediKey - Health Dashboard",
   description: "Your personal health management platform",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
     generator: 'v0.dev'
 }
 
@@ -28,9 +29,9 @@ export default function RootLayout({
           <AuthProvider>
             <div className="flex min-h-screen relative">
               <Sidebar />
-              <main className="flex-1 overflow-auto relative w-full md:ml-60">
+              <main className="flex-1 overflow-auto relative w-full md:w-[calc(100%-16rem)]">
                 <AnimatedBackground />
-                {children}
+                <div className="pt-16 md:pt-0">{children}</div>
                 <div className="fixed bottom-4 right-4 z-50">
                   <ThemeToggle />
                 </div>

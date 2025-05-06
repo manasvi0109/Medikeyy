@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   AlertTriangle,
   BarChart2,
@@ -14,17 +14,55 @@ import {
   Smartphone,
   Users,
   Briefcase,
+  Menu,
+  X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { useIsMobile } from "@/components/responsive-utils"
 
 export default function Sidebar() {
   const pathname = usePathname()
   const [user, setUser] = useState({
     name: "manasvi",
     initial: "M",
+    profileImage: null,
   })
+  const isMobile = useIsMobile()
+  const [isMobileOpen, setIsMobileOpen] = useState(false)
+
+  // Load user data
+  useEffect(() => {
+    const storedUser = localStorage.getItem("medikey_user") || sessionStorage.getItem("medikey_user")
+    if (storedUser) {
+      const userData = JSON.parse(storedUser)
+      setUser({
+        name: userData.name || "manasvi",
+        initial: (userData.name?.[0] || "M").toUpperCase(),
+        profileImage: userData.profileImage || null,
+      })
+    }
+  }, [])
+
+  // Close sidebar when route changes on mobile
+  useEffect(() => {
+    if (isMobile) {
+      setIsMobileOpen(false)
+    }
+  }, [pathname, isMobile])
+
+  // Close sidebar when pressing escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsMobileOpen(false)
+      }
+    }
+
+    window.addEventListener("keydown", handleEscape)
+    return () => window.removeEventListener("keydown", handleEscape)
+  }, [])
 
   const mainNavItems = [
     {
@@ -77,49 +115,41 @@ export default function Sidebar() {
     },
   ]
 
-  // Add state for mobile sidebar visibility and a function to toggle it
-  const [isMobileOpen, setIsMobileOpen] = useState(false)
-  const toggleMobileSidebar = () => setIsMobileOpen(!isMobileOpen)
-
-  // Update the return statement to make the sidebar responsive
   return (
     <>
-      {/* Mobile overlay */}
-      {isMobileOpen && (
-        <div className="md:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setIsMobileOpen(false)} />
-      )}
-
       {/* Mobile toggle button */}
       <button
-        className="md:hidden fixed top-4 left-4 z-50 bg-primary text-primary-foreground p-2 rounded-md"
-        onClick={toggleMobileSidebar}
+        className="md:hidden fixed top-4 left-4 z-50 bg-primary text-primary-foreground p-2 rounded-md shadow-md"
+        onClick={() => setIsMobileOpen(!isMobileOpen)}
+        aria-label={isMobileOpen ? "Close menu" : "Open menu"}
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <line x1="3" y1="12" x2="21" y2="12"></line>
-          <line x1="3" y1="6" x2="21" y2="6"></line>
-          <line x1="3" y1="18" x2="21" y2="18"></line>
-        </svg>
+        {isMobileOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
+
+      {/* Mobile overlay */}
+      {isMobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/50 z-40 backdrop-blur-sm transition-opacity duration-200"
+          onClick={() => setIsMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
 
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 transform ${isMobileOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 transition-transform duration-200 ease-in-out md:relative flex flex-col w-60 border-r bg-background z-50`}
+        className={cn(
+          "fixed inset-y-0 left-0 transform transition-transform duration-300 ease-in-out md:translate-x-0 md:relative flex flex-col w-64 border-r bg-background z-50",
+          isMobileOpen ? "translate-x-0" : "-translate-x-full",
+        )}
       >
-        <div className="p-4 border-b">
+        <div className="p-4 border-b flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <div className="flex items-center justify-center w-8 h-8 rounded bg-blue-600 text-white font-bold">M</div>
             <span className="text-xl font-semibold text-blue-500">MediKey</span>
           </Link>
+          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsMobileOpen(false)}>
+            <X size={18} />
+          </Button>
         </div>
 
         <div className="flex-1 py-4 overflow-y-auto">
@@ -133,7 +163,6 @@ export default function Sidebar() {
                   pathname === item.href ? item.active : "text-muted-foreground",
                   item.hover,
                 )}
-                onClick={() => setIsMobileOpen(false)}
               >
                 <item.icon className={cn("h-5 w-5", pathname === item.href ? item.color : "")} />
                 {item.title}
@@ -154,7 +183,6 @@ export default function Sidebar() {
                 pathname === "/emergency" ? "bg-red-500/10 text-red-500" : "text-red-500",
                 "hover:bg-red-500/10 hover:text-red-400",
               )}
-              onClick={() => setIsMobileOpen(false)}
             >
               <AlertTriangle className="h-5 w-5" />
               Emergency Mode
@@ -176,7 +204,6 @@ export default function Sidebar() {
                 pathname === "/mobile-access" ? "bg-blue-500/10 text-blue-500" : "text-blue-500",
                 "hover:bg-blue-500/10 hover:text-blue-400",
               )}
-              onClick={() => setIsMobileOpen(false)}
             >
               <Smartphone className="h-5 w-5" />
               Access on Phone
@@ -188,7 +215,11 @@ export default function Sidebar() {
           <div className="border-t p-4">
             <div className="flex items-center gap-3">
               <Avatar className="h-9 w-9">
-                <AvatarFallback>{user.initial}</AvatarFallback>
+                {user.profileImage ? (
+                  <AvatarImage src={user.profileImage || "/placeholder.svg"} alt={user.name} />
+                ) : (
+                  <AvatarFallback>{user.initial}</AvatarFallback>
+                )}
               </Avatar>
               <div>
                 <p className="text-sm font-medium">{user.name}</p>

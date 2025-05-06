@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
 import { usePathname } from "next/navigation"
 
 type Particle = {
@@ -20,10 +20,9 @@ type AnimatedBackgroundProps = {
 
 export default function AnimatedBackground({ color = "#3b82f6", particleCount = 50 }: AnimatedBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [particles, setParticles] = useState<Particle[]>([])
+  const particlesRef = useRef<Particle[]>([])
   const animationRef = useRef<number>(0)
   const pathname = usePathname()
-  const particlesRef = useRef(particles) // Move useRef here
 
   // Determine color based on current route
   const getColorByRoute = (): string => {
@@ -68,7 +67,7 @@ export default function AnimatedBackground({ color = "#3b82f6", particleCount = 
           connections: [],
         })
       }
-      setParticles(newParticles)
+      particlesRef.current = newParticles
     }
 
     window.addEventListener("resize", handleResize)
@@ -82,21 +81,18 @@ export default function AnimatedBackground({ color = "#3b82f6", particleCount = 
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || particles.length === 0) return
+    if (!canvas) return
 
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    // Create a ref to store particles data to avoid state updates during animation
-    particlesRef.current = particles
-
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      // Update and draw particles without updating state
-      const currentParticles = particlesRef.current
-      for (let i = 0; i < currentParticles.length; i++) {
-        const p = currentParticles[i]
+      // Update and draw particles
+      const particles = particlesRef.current
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i]
 
         // Update position
         p.x += p.speedX
@@ -116,8 +112,8 @@ export default function AnimatedBackground({ color = "#3b82f6", particleCount = 
 
         // Find and draw connections
         p.connections = []
-        for (let j = i + 1; j < currentParticles.length; j++) {
-          const p2 = currentParticles[j]
+        for (let j = i + 1; j < particles.length; j++) {
+          const p2 = particles[j]
           const distance = Math.sqrt(Math.pow(p.x - p2.x, 2) + Math.pow(p.y - p2.y, 2))
 
           if (distance < 100) {
@@ -145,7 +141,7 @@ export default function AnimatedBackground({ color = "#3b82f6", particleCount = 
     return () => {
       cancelAnimationFrame(animationRef.current)
     }
-  }, [particles, currentColor])
+  }, [currentColor])
 
   // Draw molecular structures
   useEffect(() => {
