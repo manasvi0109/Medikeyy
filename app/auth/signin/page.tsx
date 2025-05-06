@@ -34,21 +34,38 @@ export default function SignInPage() {
     setIsLoading(true)
     setError("")
 
-    // Simulate authentication
-    setTimeout(() => {
-      if (formData.username === "username" && formData.password === "password") {
-        // Store user info in localStorage or sessionStorage
-        if (formData.rememberMe) {
-          localStorage.setItem("medikey_user", JSON.stringify({ name: formData.username }))
-        } else {
-          sessionStorage.setItem("medikey_user", JSON.stringify({ name: formData.username }))
-        }
-        router.push("/")
-      } else {
-        setError("Invalid username or password")
+    // Get stored users
+    const storedUsers = JSON.parse(localStorage.getItem("medikey_users") || "[]")
+
+    // Find user
+    const foundUser = storedUsers.find(
+      (user: any) => user.username === formData.username && user.password === formData.password,
+    )
+
+    if (foundUser) {
+      // Create user session
+      const userData = {
+        name: formData.username,
+        fullName: foundUser.fullName || formData.username,
+        email: foundUser.email || "",
+        initial: formData.username.charAt(0).toUpperCase(),
+        lastLogin: new Date().toISOString(),
       }
+
+      if (formData.rememberMe) {
+        localStorage.setItem("medikey_user", JSON.stringify(userData))
+      } else {
+        sessionStorage.setItem("medikey_user", JSON.stringify(userData))
+      }
+
+      setTimeout(() => {
+        router.push("/")
+        setIsLoading(false)
+      }, 1500)
+    } else {
+      setError("Invalid username or password")
       setIsLoading(false)
-    }, 1500)
+    }
   }
 
   return (

@@ -26,9 +26,9 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} storageKey="medikey-theme">
           <AuthProvider>
-            <div className="flex min-h-screen">
+            <div className="flex min-h-screen relative">
               <Sidebar />
-              <main className="flex-1 overflow-auto relative">
+              <main className="flex-1 overflow-auto relative w-full md:ml-60">
                 <AnimatedBackground />
                 {children}
                 <div className="fixed bottom-4 right-4 z-50">

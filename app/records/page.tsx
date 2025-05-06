@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FileText, Plus, Search } from "lucide-react"
@@ -24,10 +24,61 @@ export default function RecordsPage() {
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
+  // Add state for storing uploaded files
+  const [uploadedFiles, setUploadedFiles] = useState<
+    Array<{
+      id: string
+      title: string
+      type: string
+      date: string
+      provider: string
+      file: string
+      fileName: string
+      fileSize: number
+      uploadDate: string
+    }>
+  >([])
+
+  // Load saved files on component mount
+  useEffect(() => {
+    const savedFiles = localStorage.getItem("medikey_uploaded_files")
+    if (savedFiles) {
+      setUploadedFiles(JSON.parse(savedFiles))
+    }
+  }, [])
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0])
     }
+  }
+
+  // Function to handle file upload
+  const handleUploadRecord = () => {
+    if (!selectedFile) return
+
+    // Create a new file record
+    const newFile = {
+      id: Date.now().toString(),
+      title: (document.getElementById("title") as HTMLInputElement)?.value || "Untitled",
+      type: (document.getElementById("record-type") as HTMLSelectElement)?.value || "other",
+      date:
+        (document.getElementById("record-date") as HTMLInputElement)?.value || new Date().toISOString().split("T")[0],
+      provider: (document.getElementById("provider-name") as HTMLInputElement)?.value || "Unknown",
+      file: URL.createObjectURL(selectedFile),
+      fileName: selectedFile.name,
+      fileSize: selectedFile.size,
+      uploadDate: new Date().toISOString(),
+    }
+
+    // Add to state and save to localStorage
+    const updatedFiles = [...uploadedFiles, newFile]
+    setUploadedFiles(updatedFiles)
+    localStorage.setItem("medikey_uploaded_files", JSON.stringify(updatedFiles))
+
+    // Close dialog and reset form
+    setIsUploadDialogOpen(false)
+    setSelectedFile(null)
   }
 
   return (
@@ -138,7 +189,7 @@ export default function RecordsPage() {
                 <Button variant="outline" onClick={() => setIsUploadDialogOpen(false)}>
                   Reset Form
                 </Button>
-                <Button onClick={() => setIsUploadDialogOpen(false)} className="bg-teal-500 hover:bg-teal-600">
+                <Button onClick={handleUploadRecord} className="bg-teal-500 hover:bg-teal-600">
                   Upload Record
                 </Button>
               </DialogFooter>
@@ -176,13 +227,38 @@ export default function RecordsPage() {
         </TabsList>
 
         <TabsContent value="all-records" className="bg-accent/20 p-8 rounded-lg min-h-[400px]">
-          <div className="flex flex-col items-center justify-center text-center">
-            <FileText className="h-16 w-16 text-muted-foreground mb-4" />
-            <h3 className="text-xl font-medium mb-2">No records found</h3>
-            <p className="text-muted-foreground mb-6">
-              Try adjusting your search or filters to find what you're looking for.
-            </p>
-          </div>
+          {uploadedFiles.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {uploadedFiles.map((file) => (
+                <div key={file.id} className="bg-background rounded-lg border p-4 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FileText className="h-5 w-5 text-teal-500" />
+                    <h3 className="font-medium truncate">{file.title}</h3>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>Type: {file.type}</p>
+                    <p>Date: {new Date(file.date).toLocaleDateString()}</p>
+                    <p>Provider: {file.provider}</p>
+                    <p>File: {file.fileName}</p>
+                    <p>Size: {Math.round(file.fileSize / 1024)} KB</p>
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <Button variant="outline" size="sm" className="text-teal-500 border-teal-500">
+                      View
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center text-center">
+              <FileText className="h-16 w-16 text-muted-foreground mb-4" />
+              <h3 className="text-xl font-medium mb-2">No records found</h3>
+              <p className="text-muted-foreground mb-6">
+                Try adjusting your search or filters to find what you're looking for.
+              </p>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="prescriptions">

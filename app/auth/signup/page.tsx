@@ -56,18 +56,41 @@ export default function SignUpPage() {
       return
     }
 
-    // Simulate account creation
-    setTimeout(() => {
-      // Store user info in localStorage
-      localStorage.setItem(
-        "medikey_user",
-        JSON.stringify({
-          name: formData.username,
-          fullName: formData.fullName,
-          email: formData.email,
-        }),
-      )
+    // Get existing users or initialize empty array
+    const existingUsers = JSON.parse(localStorage.getItem("medikey_users") || "[]")
 
+    // Check if username already exists
+    if (existingUsers.some((user: any) => user.username === formData.username)) {
+      setError("Username already exists")
+      setIsLoading(false)
+      return
+    }
+
+    // Add new user
+    const newUser = {
+      username: formData.username,
+      fullName: formData.fullName,
+      email: formData.email,
+      password: formData.password, // In a real app, this would be hashed
+      createdAt: new Date().toISOString(),
+    }
+
+    existingUsers.push(newUser)
+    localStorage.setItem("medikey_users", JSON.stringify(existingUsers))
+
+    // Store user info in localStorage for current session
+    localStorage.setItem(
+      "medikey_user",
+      JSON.stringify({
+        name: formData.username,
+        fullName: formData.fullName,
+        email: formData.email,
+        initial: formData.username.charAt(0).toUpperCase(),
+      }),
+    )
+
+    // Redirect to dashboard
+    setTimeout(() => {
       router.push("/")
       setIsLoading(false)
     }, 1500)

@@ -47,11 +47,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (username: string, password: string): Promise<boolean> => {
     // This is a mock authentication
-    if (username === "manasvi" && password === "password") {
-      const userData = { name: username }
-      localStorage.setItem("medikey_user", JSON.stringify(userData))
-      setUser(userData)
-      return true
+    if (username && password) {
+      // Get stored users or create default
+      const storedUsers = JSON.parse(localStorage.getItem("medikey_users") || "[]")
+
+      // Find user
+      const foundUser = storedUsers.find((u: any) => u.username === username && u.password === password)
+
+      if (foundUser) {
+        // Create user session
+        const userData = {
+          name: username,
+          fullName: foundUser.fullName || username,
+          email: foundUser.email || "",
+          initial: username.charAt(0).toUpperCase(),
+          lastLogin: new Date().toISOString(),
+        }
+
+        localStorage.setItem("medikey_user", JSON.stringify(userData))
+        setUser(userData)
+        return true
+      }
     }
     return false
   }
