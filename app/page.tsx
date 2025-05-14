@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Calendar, FileText, Heart, Shield, Users, Briefcase } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import SeedDataButton from "@/components/seed-data-button"
 
 export default function Dashboard() {
   return (
@@ -10,9 +11,12 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold">Health Dashboard</h1>
           <p className="text-muted-foreground">Welcome back, Manasvi. Here's your health overview.</p>
         </div>
-        <Button variant="outline" size="sm" className="rounded-full bg-blue-500 text-white hover:bg-blue-600">
-          Dashboard
-        </Button>
+        <div className="flex gap-2">
+          <SeedDataButton userId="manasvi" />
+          <Button variant="outline" size="sm" className="rounded-full bg-blue-500 text-white hover:bg-blue-600">
+            Dashboard
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4 mb-8">

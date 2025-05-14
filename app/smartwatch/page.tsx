@@ -1,26 +1,46 @@
 "use client"
 
-import { Input } from "@/components/ui/input"
-
 import { useState } from "react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Heart, Activity, Clock, Thermometer, Footprints, Watch, Copy } from "lucide-react"
+import { Heart, Activity, Clock, Thermometer, Footprints, Watch, Copy, Plus } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/hooks/use-toast"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { format } from "date-fns"
 
 export default function SmartwatchPage() {
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState("all")
 
-  const handleCopyUrl = (url: string) => {
+  const handleCopyUrl = (url) => {
     navigator.clipboard.writeText(url)
     toast({
       title: "URL copied to clipboard",
       description: "You can now paste this URL in your smartwatch app",
     })
+  }
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    try {
+      return format(new Date(dateString), "h:mm:ss a")
+    } catch (e) {
+      return "Unknown"
+    }
   }
 
   return (
@@ -241,7 +261,53 @@ export default function SmartwatchPage() {
                     <li>Authorize the connection on your smartwatch</li>
                     <li>Your health data will now sync automatically</li>
                   </ol>
-                  <Button>Connect New Device</Button>
+
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Connect New Device
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add New Device</DialogTitle>
+                        <DialogDescription>
+                          Enter the details of your smartwatch to connect it to MediKey.
+                        </DialogDescription>
+                      </DialogHeader>
+
+                      <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="device-name" className="text-right">
+                            Device Name
+                          </Label>
+                          <Input id="device-name" placeholder="My Apple Watch" className="col-span-3" />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="device-type" className="text-right">
+                            Device Type
+                          </Label>
+                          <Select defaultValue="apple_watch">
+                            <SelectTrigger className="col-span-3">
+                              <SelectValue placeholder="Select device type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="apple_watch">Apple Watch</SelectItem>
+                              <SelectItem value="fitbit">Fitbit</SelectItem>
+                              <SelectItem value="samsung">Samsung Galaxy Watch</SelectItem>
+                              <SelectItem value="garmin">Garmin</SelectItem>
+                              <SelectItem value="other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <DialogFooter>
+                        <Button type="submit">Connect Device</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </TabsContent>
             </Tabs>
