@@ -165,3 +165,30 @@ async function seedMedicalRecords(userId: string) {
     file_name: "vaccination_record.pdf",
   })
 }
+
+export async function generateSampleData(userId: string) {
+  try {
+    // Check if sample data already exists for the user
+    // For simplicity, we'll just check if any medical records exist
+    const existingRecords = await getMedicalRecords(userId)
+    if (existingRecords.success && existingRecords.data.length > 0) {
+      console.log("Sample data already exists for user:", userId)
+      return { success: true, message: "Sample data already exists" }
+    }
+
+    // Seed sample data if it doesn't exist
+    const seedResult = await seedSampleData(userId)
+    if (seedResult.success) {
+      console.log("Sample data generated successfully for user:", userId)
+      return { success: true, message: "Sample data generated successfully" }
+    } else {
+      console.error("Failed to generate sample data:", seedResult.error)
+      return { success: false, error: seedResult.error }
+    }
+  } catch (error) {
+    console.error("Error generating sample data:", error)
+    return { success: false, error: "Failed to generate sample data" }
+  }
+}
+
+import { getMedicalRecords } from "./medical-records"

@@ -4,7 +4,15 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
-import { getHealthMetricsByDateRange, getAggregatedHealthMetrics } from "@/app/actions/health-metrics"
+import {
+  generateHeartRateData,
+  generateBloodOxygenData,
+  generateStepsData,
+  generateSleepData,
+  generateTemperatureData,
+  generateWeightData,
+  generateBloodPressureData,
+} from "@/lib/data-generator"
 
 type HealthMetricsChartProps = {
   userId: string
@@ -26,68 +34,74 @@ export default function HealthMetricsChart({
   const [timeRange, setTimeRange] = useState("7d")
   const [data, setData] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [aggregation, setAggregation] = useState<"none" | "hour" | "day" | "week" | "month">("none")
 
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true)
 
-      // Calculate date range based on selected time range
-      const endDate = new Date()
-      const startDate = new Date()
+      // Generate appropriate data based on metric type
+      let generatedData: any[] = []
 
-      switch (timeRange) {
-        case "24h":
-          startDate.setHours(startDate.getHours() - 24)
-          setAggregation("hour")
+      switch (metricType) {
+        case "heart_rate":
+          generatedData = generateHeartRateData(50)
           break
-        case "7d":
-          startDate.setDate(startDate.getDate() - 7)
-          setAggregation("day")
+        case "blood_oxygen":
+          generatedData = generateBloodOxygenData(50)
           break
-        case "30d":
-          startDate.setDate(startDate.getDate() - 30)
-          setAggregation("day")
+        case "steps":
+          generatedData = generateStepsData(30)
           break
-        case "90d":
-          startDate.setDate(startDate.getDate() - 90)
-          setAggregation("week")
+        case "sleep":
+          generatedData = generateSleepData(30)
           break
-        case "1y":
-          startDate.setFullYear(startDate.getFullYear() - 1)
-          setAggregation("month")
+        case "temperature":
+          generatedData = generateTemperatureData(50)
           break
+        case "weight":
+          generatedData = generateWeightData(90)
+          break
+        case "blood_pressure":
+          generatedData = generateBloodPressureData(50)
+          break
+        default:
+          generatedData = generateHeartRateData(50)
       }
 
-      try {
-        let result
-
-        if (aggregation === "none") {
-          result = await getHealthMetricsByDateRange(userId, metricType, startDate.toISOString(), endDate.toISOString())
-        } else {
-          result = await getAggregatedHealthMetrics(
-            userId,
-            metricType,
-            aggregation,
-            startDate.toISOString(),
-            endDate.toISOString(),
-          )
-        }
-
-        if (result.success) {
-          setData(result.data)
-        } else {
-          console.error("Failed to fetch health metrics:", result.error)
-        }
-      } catch (error) {
-        console.error("Error fetching health metrics:", error)
-      } finally {
-        setIsLoading(false)
-      }
+      // Filter data based on selected time range
+      const filteredData = filterDataByTimeRange(generatedData, timeRange)
+      setData(filteredData)
+      setIsLoading(false)
     }
 
     fetchData()
-  }, [userId, metricType, timeRange, aggregation])
+  }, [metricType, timeRange])
+
+  // Filter data based on time range
+  const filterDataByTimeRange = (data: any[], range: string) => {
+    const now = new Date()
+    const filtered = data.filter((item) => {
+      const itemDate = new Date(item.recorded_at)
+      const diffDays = Math.floor((now.getTime() - itemDate.getTime()) / (1000 * 60 * 60 * 24))
+
+      switch (range) {
+        case "24h":
+          return diffDays < 1
+        case "7d":
+          return diffDays < 7
+        case "30d":
+          return diffDays < 30
+        case "90d":
+          return diffDays < 90
+        case "1y":
+          return diffDays < 365
+        default:
+          return true
+      }
+    })
+
+    return filtered
+  }
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -112,6 +126,15 @@ export default function HealthMetricsChart({
       month: "short",
       day: "numeric",
     })
+  }
+
+  // Extract value from data for blood pressure
+  const getDataValue = (item: any) => {
+    if (metricType === "blood_pressure" && typeof item.value === "string") {
+      // Extract systolic value from "120/80" format
+      return Number.parseInt(item.value.split("/")[0])
+    }
+    return item.value
   }
 
   return (
@@ -145,7 +168,7 @@ export default function HealthMetricsChart({
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                <XAxis dataKey={aggregation === "none" ? "recorded_at" : "time_period"} tickFormatter={formatDate} />
+                <XAxis dataKey="recorded_at" tickFormatter={formatDate} />
                 <YAxis domain={normalRange ? [normalRange.min * 0.9, normalRange.max * 1.1] : ["auto", "auto"]} />
                 <Tooltip
                   formatter={(value: any) => [`${value} ${unit}`, title]}
@@ -154,36 +177,29 @@ export default function HealthMetricsChart({
                 <Legend />
                 <Line
                   type="monotone"
-                  dataKey={aggregation === "none" ? "value" : "avg_value"}
-                  name={aggregation === "none" ? title : `Average ${title}`}
+                  dataKey={(item) => getDataValue(item)}
+                  name={title}
                   stroke={color}
                   strokeWidth={2}
                   dot={{ r: 4 }}
                   activeDot={{ r: 6, stroke: color, strokeWidth: 2, fill: "#fff" }}
                 />
-                {aggregation !== "none" && (
-                  <>
-                    <Line
-                      type="monotone"
-                      dataKey="max_value"
-                      name={`Max ${title}`}
-                      stroke={color}
-                      strokeWidth={1}
-                      strokeDasharray="5 5"
-                      dot={false}
-                      opacity={0.7}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="min_value"
-                      name={`Min ${title}`}
-                      stroke={color}
-                      strokeWidth={1}
-                      strokeDasharray="5 5"
-                      dot={false}
-                      opacity={0.7}
-                    />
-                  </>
+                {metricType === "blood_pressure" && (
+                  <Line
+                    type="monotone"
+                    dataKey={(item) => {
+                      if (typeof item.value === "string") {
+                        return Number.parseInt(item.value.split("/")[1]) // Diastolic
+                      }
+                      return null
+                    }}
+                    name="Diastolic"
+                    stroke={color}
+                    strokeWidth={2}
+                    strokeOpacity={0.6}
+                    dot={{ r: 4 }}
+                    activeDot={{ r: 6, stroke: color, strokeWidth: 2, fill: "#fff" }}
+                  />
                 )}
               </LineChart>
             </ResponsiveContainer>
