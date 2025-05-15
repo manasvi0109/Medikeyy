@@ -6,11 +6,136 @@ import { Input } from "@/components/ui/input"
 import { Send, Mic, StopCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 type Message = {
   role: "user" | "assistant"
   content: string
   timestamp: Date
+}
+
+// Health knowledge base for the assistant
+const healthKnowledgeBase = {
+  "blood test":
+    "Your latest blood test from May 10, 2025 shows normal levels for most markers. Your cholesterol is slightly elevated at 210 mg/dL (normal range: <200 mg/dL). Your doctor recommended dietary changes and a follow-up in 3 months.",
+
+  cholesterol:
+    "Cholesterol is a waxy substance found in your blood. While your body needs cholesterol to build healthy cells, high levels can increase your risk of heart disease. Your latest reading shows total cholesterol at 210 mg/dL (slightly elevated), with LDL at 130 mg/dL and HDL at 55 mg/dL.",
+
+  lisinopril:
+    "Lisinopril is an ACE inhibitor used to treat high blood pressure and heart failure. Common side effects include dry cough (occurs in about 10% of patients), dizziness, headache, and fatigue. Serious side effects are rare but can include swelling of the face/lips/tongue, difficulty breathing, and kidney problems. Always take as prescribed.",
+
+  mammogram:
+    "For women at average risk of breast cancer, mammograms are recommended every 1-2 years beginning at age 40 or 50, depending on the guideline. Based on your family history (mother diagnosed at age 52), your doctor recommended annual mammograms starting at age 40. Your last mammogram was on January 15, 2025, and was normal.",
+
+  bmi: "BMI (Body Mass Index) is a value derived from a person's weight and height. It provides a rough estimate of body fat and is used to categorize individuals as underweight (<18.5), normal weight (18.5-24.9), overweight (25-29.9), or obese (≥30). Your current BMI is 26.3, which falls in the overweight category.",
+
+  asthma:
+    "To better manage your asthma, ensure you: 1) Take your controller medication daily as prescribed, 2) Keep your rescue inhaler with you at all times, 3) Identify and avoid triggers like pollen and pet dander, 4) Follow your asthma action plan, and 5) Get annual flu shots. Your last pulmonary function test showed mild obstruction with good response to bronchodilators.",
+
+  "blood pressure":
+    "Your blood pressure has been stable over the last 3 months, averaging 128/82 mmHg, which is considered elevated but not hypertensive. Continue with your current medication (Lisinopril 10mg daily) and lifestyle modifications including reduced sodium intake and regular exercise.",
+
+  diabetes:
+    "Your latest HbA1c test result from April 2025 was 5.6%, which is in the prediabetes range (5.7-6.4% is prediabetic, ≥6.5% is diabetic). Your doctor recommended increasing physical activity and reducing simple carbohydrate intake to prevent progression to type 2 diabetes.",
+
+  "vitamin d":
+    "Your Vitamin D level is 28 ng/mL, which is slightly below the recommended range of 30-50 ng/mL. Your doctor prescribed a supplement of 2000 IU daily. Vitamin D is important for bone health and immune function.",
+
+  "heart rate":
+    "Your resting heart rate has averaged 72 BPM over the past month, which is within the normal range (60-100 BPM). During exercise, your heart rate appropriately increases to 130-150 BPM, indicating good cardiovascular response.",
+
+  spo2: "Your blood oxygen saturation (SpO2) has consistently been between 96-99%, which is in the normal range (95-100%). This indicates good lung function and adequate oxygen delivery to your tissues.",
+
+  sleep:
+    "Your sleep data shows an average of 6.8 hours per night over the past month, with sleep efficiency of 85%. Recommendations for improving sleep include maintaining a consistent sleep schedule, limiting screen time before bed, and ensuring your bedroom is dark and cool.",
+
+  allergies:
+    "Your medical record indicates allergies to penicillin (severe - anaphylaxis) and pollen (moderate - seasonal rhinitis). You're currently prescribed Flonase nasal spray for seasonal allergies and carry an EpiPen for emergency use in case of accidental penicillin exposure.",
+
+  medications:
+    "Your current medications include: 1) Lisinopril 10mg daily for blood pressure, 2) Flonase nasal spray for allergies, 3) Vitamin D 2000 IU daily, and 4) Albuterol inhaler as needed for asthma symptoms. Your last medication review was on March 15, 2025.",
+
+  appointment:
+    "Your next scheduled appointments are: 1) Dr. Smith (Primary Care) on June 10, 2025 at 2:30 PM for a follow-up on blood pressure, and 2) Dr. Johnson (Allergist) on July 15, 2025 at 10:00 AM for seasonal allergy management.",
+
+  exercise:
+    "Based on your health profile, recommended exercise includes 150 minutes of moderate aerobic activity weekly (like brisk walking) and strength training twice weekly. Your smartwatch data shows you've averaged 110 minutes of activity per week over the past month.",
+
+  diet: "Your nutritionist recommended a Mediterranean-style diet with emphasis on fruits, vegetables, whole grains, lean proteins, and healthy fats. Specific recommendations include limiting sodium to <2300mg daily and added sugars to <25g daily to help manage your blood pressure and prediabetes risk.",
+
+  headache:
+    "Your health records show occasional tension headaches, typically associated with stress or poor sleep. If you're experiencing a new or severe headache pattern, especially with symptoms like visual changes, weakness, or confusion, please contact your healthcare provider immediately.",
+
+  covid:
+    "Your COVID-19 vaccination record shows you received the initial series plus two booster shots, with the most recent on November 10, 2024. Based on current guidelines, you're eligible for another booster in November 2025.",
+
+  "family history":
+    "Your family health history includes: Mother - breast cancer at age 52 (survivor), hypertension; Father - type 2 diabetes, heart attack at age 65; Sister - asthma; Maternal grandmother - stroke at age 78. This history places you at increased risk for cardiovascular disease, diabetes, and breast cancer.",
+}
+
+// Function to find the best match for a query in the knowledge base
+function findBestMatch(query: string): string {
+  query = query.toLowerCase()
+  let bestMatch = ""
+  let highestScore = 0
+
+  for (const [key, value] of Object.entries(healthKnowledgeBase)) {
+    if (query.includes(key)) {
+      const score = key.length // Longer matches are prioritized
+      if (score > highestScore) {
+        highestScore = score
+        bestMatch = value
+      }
+    }
+  }
+
+  // If no direct match, look for partial matches
+  if (!bestMatch) {
+    for (const [key, value] of Object.entries(healthKnowledgeBase)) {
+      const keyWords = key.split(" ")
+      for (const word of keyWords) {
+        if (word.length > 3 && query.includes(word)) {
+          // Only consider meaningful words
+          const score = word.length / 2 // Partial matches get lower scores
+          if (score > highestScore) {
+            highestScore = score
+            bestMatch = value
+          }
+        }
+      }
+    }
+  }
+
+  // If still no match, provide a general response
+  if (!bestMatch) {
+    return "I don't have specific information about that in your health records. Would you like me to provide general health information on this topic or connect you with a healthcare provider?"
+  }
+
+  return bestMatch
+}
+
+// Function to generate a response based on the user's query
+function generateResponse(query: string): string {
+  const lowerQuery = query.toLowerCase()
+
+  // Check for greetings
+  if (lowerQuery.match(/^(hi|hello|hey|greetings)/)) {
+    return "Hello! I'm your MediKey AI Health Assistant. How can I help you with your health information today?"
+  }
+
+  // Check for gratitude
+  if (lowerQuery.match(/(thank you|thanks|thx)/)) {
+    return "You're welcome! Is there anything else I can help you with regarding your health?"
+  }
+
+  // Check for questions about the assistant itself
+  if (lowerQuery.includes("who are you") || lowerQuery.includes("what can you do")) {
+    return "I'm your MediKey AI Health Assistant. I can access your health records to answer questions about your medical history, explain medical terms, interpret lab results, provide medication information, and offer general health guidance. All your data is kept private and secure."
+  }
+
+  // Find the best match in the knowledge base
+  return findBestMatch(query)
 }
 
 export default function AssistantPage() {
@@ -19,6 +144,7 @@ export default function AssistantPage() {
   const [isTyping, setIsTyping] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
+  const [activeTab, setActiveTab] = useState("chat")
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -30,6 +156,12 @@ export default function AssistantPage() {
     "How often should I get a mammogram?",
     "What does BMI stand for?",
     "How can I manage my asthma better?",
+    "What's my current blood pressure?",
+    "Am I at risk for diabetes?",
+    "What's my vitamin D level?",
+    "When is my next appointment?",
+    "What medications am I taking?",
+    "What are my allergies?",
   ]
 
   useEffect(() => {
@@ -37,6 +169,20 @@ export default function AssistantPage() {
   }, [conversation])
 
   useEffect(() => {
+    // Add welcome message when component mounts
+    if (conversation.length === 0) {
+      setTimeout(() => {
+        setConversation([
+          {
+            role: "assistant",
+            content:
+              "Hello! I'm your MediKey AI Health Assistant. I can answer questions about your health records, explain medical terms, and provide health information. How can I help you today?",
+            timestamp: new Date(),
+          },
+        ])
+      }, 500)
+    }
+
     // Cleanup recording timer on unmount
     return () => {
       if (recordingTimerRef.current) {
@@ -53,32 +199,21 @@ export default function AssistantPage() {
     if (!message.trim()) return
 
     // Add user message to conversation
-    setConversation([...conversation, { role: "user", content: message, timestamp: new Date() }])
+    const userMessage = { role: "user" as const, content: message, timestamp: new Date() }
+    setConversation((prev) => [...prev, userMessage])
     setIsTyping(true)
+    setMessage("")
 
-    // Simulate AI response with typing effect
-    const responses = [
-      "Based on your health records, your blood pressure has been stable over the last 3 months.",
-      "I recommend discussing these symptoms with your doctor at your next appointment.",
-      "The normal range for fasting blood sugar is between 70-100 mg/dL.",
-      "Regular exercise can help improve your cardiovascular health.",
-      "Your recent lab results show improvement in your cholesterol levels.",
-      "High cholesterol refers to elevated levels of lipids in your blood. LDL (often called 'bad' cholesterol) above 130 mg/dL is considered elevated. High cholesterol can increase your risk of heart disease and stroke.",
-      "Common side effects of Lisinopril include dry cough, dizziness, headache, and fatigue. Serious side effects are rare but can include swelling of the face/lips/tongue and difficulty breathing.",
-      "BMI stands for Body Mass Index. It's a value derived from the weight and height of a person. The BMI is defined as the body mass divided by the square of the body height, and is expressed in units of kg/m², resulting from mass in kilograms and height in metres.",
-    ]
+    // Generate AI response with typing effect
+    const aiResponse = generateResponse(message)
 
-    const randomResponse = responses[Math.floor(Math.random() * responses.length)]
-
-    // Simulate typing with a delay proportional to message length
-    const typingDelay = Math.min(1000, randomResponse.length * 10)
+    // Calculate typing delay based on response length (faster for short responses)
+    const typingDelay = Math.min(2000, Math.max(800, aiResponse.length * 10))
 
     setTimeout(() => {
-      setConversation((prev) => [...prev, { role: "assistant", content: randomResponse, timestamp: new Date() }])
+      setConversation((prev) => [...prev, { role: "assistant" as const, content: aiResponse, timestamp: new Date() }])
       setIsTyping(false)
     }, typingDelay)
-
-    setMessage("")
   }
 
   const handleSuggestedQuestion = (question: string) => {
@@ -129,7 +264,15 @@ export default function AssistantPage() {
     // For demo, we'll simulate a recording after 3 seconds
     setTimeout(() => {
       stopRecording()
-      setMessage("What are the side effects of Lisinopril?")
+      const randomQuestions = [
+        "What are the side effects of Lisinopril?",
+        "What does my blood test show?",
+        "When is my next appointment?",
+        "What's my current blood pressure?",
+        "How can I manage my asthma better?",
+      ]
+      const randomQuestion = randomQuestions[Math.floor(Math.random() * randomQuestions.length)]
+      setMessage(randomQuestion)
       setTimeout(() => {
         handleSendMessage()
       }, 500)
@@ -150,6 +293,21 @@ export default function AssistantPage() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
   }
 
+  const clearConversation = () => {
+    setConversation([
+      {
+        role: "assistant",
+        content:
+          "Hello! I'm your MediKey AI Health Assistant. I can answer questions about your health records, explain medical terms, and provide health information. How can I help you today?",
+        timestamp: new Date(),
+      },
+    ])
+    toast({
+      title: "Conversation cleared",
+      description: "Your conversation history has been cleared.",
+    })
+  }
+
   return (
     <div className="p-6 h-screen flex flex-col">
       <div className="flex justify-between items-center mb-6">
@@ -159,9 +317,12 @@ export default function AssistantPage() {
             Ask questions about your health records or get information about medical terms
           </p>
         </div>
-        <Button variant="outline" size="sm" className="rounded-full bg-orange-500 text-white hover:bg-orange-600">
-          Assistant
-        </Button>
+        <Tabs defaultValue="chat" value={activeTab} onValueChange={setActiveTab} className="w-[400px]">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="chat">Chat</TabsTrigger>
+            <TabsTrigger value="voice">Voice</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
@@ -188,7 +349,7 @@ export default function AssistantPage() {
                     <path d="M9 13v2"></path>
                   </svg>
                 </div>
-                <h3 className="text-xl font-medium mb-2">MediVault Assistant</h3>
+                <h3 className="text-xl font-medium mb-2">MediKey Assistant</h3>
                 <p className="text-muted-foreground max-w-md">Your personal AI-powered medical assistant</p>
                 <div className="mt-6 grid grid-cols-2 gap-2 max-w-md">
                   {suggestedQuestions.slice(0, 4).map((question, index) => (
@@ -289,7 +450,12 @@ export default function AssistantPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>About the Assistant</CardTitle>
+              <CardTitle className="flex justify-between items-center">
+                <span>About the Assistant</span>
+                <Button variant="outline" size="sm" onClick={clearConversation}>
+                  Clear Chat
+                </Button>
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm">
