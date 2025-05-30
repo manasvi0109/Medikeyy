@@ -1,345 +1,424 @@
 "use client"
 
-import { useState } from "react"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Heart, Activity, Clock, Thermometer, Footprints, Watch, Copy, Plus } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { useToast } from "@/hooks/use-toast"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { format } from "date-fns"
+  Watch,
+  Heart,
+  Activity,
+  Moon,
+  Droplets,
+  Wifi,
+  WifiOff,
+  RefreshCw,
+  Plus,
+  Smartphone,
+  Loader2,
+} from "lucide-react"
+import { useAuth } from "@/components/auth-provider"
+import { getSmartWatchData, simulateSmartWatchSync } from "@/app/actions/smartwatch"
+import { useToast } from "@/hooks/use-toast"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 
-export default function SmartwatchPage() {
+interface SmartWatchMetric {
+  device_name: string
+  metric_type: string
+  value: number
+  unit: string
+  recorded_at: string
+  synced_at: string
+}
+
+export default function SmartWatchPage() {
+  const [isConnected, setIsConnected] = useState(true)
+  const [lastSync, setLastSync] = useState<Date>(new Date())
+  const [isLoading, setIsLoading] = useState(false)
+  const [metrics, setMetrics] = useState<SmartWatchMetric[]>([])
+  const { user } = useAuth()
   const { toast } = useToast()
-  const [activeTab, setActiveTab] = useState("all")
 
-  const handleCopyUrl = (url) => {
-    navigator.clipboard.writeText(url)
-    toast({
-      title: "URL copied to clipboard",
-      description: "You can now paste this URL in your smartwatch app",
-    })
-  }
+  // Load smartwatch data
+  useEffect(() => {
+    async function loadData() {
+      if (!user?.patientId) return
 
-  // Format date for display
-  const formatDate = (dateString) => {
+      try {
+        const result = await getSmartWatchData(user.patientId)
+        if (result.success) {
+          setMetrics(result.data)
+        }
+      } catch (error) {
+        console.error("Error loading smartwatch data:", error)
+      }
+    }
+
+    loadData()
+  }, [user])
+
+  const handleSync = async () => {
+    if (!user?.patientId) return
+
+    setIsLoading(true)
     try {
-      return format(new Date(dateString), "h:mm:ss a")
-    } catch (e) {
-      return "Unknown"
+      const result = await simulateSmartWatchSync(user.patientId)
+
+      if (result.success) {
+        // Reload data
+        const updatedData = await getSmartWatchData(user.patientId)
+        if (updatedData.success) {
+          setMetrics(updatedData.data)
+        }
+
+        setLastSync(new Date())
+        toast({
+          title: "Sync completed",
+          description: "Your smartwatch data has been synchronized successfully.",
+        })
+      } else {
+        throw new Error(result.error)
+      }
+    } catch (error) {
+      console.error("Error syncing smartwatch:", error)
+      toast({
+        title: "Sync failed",
+        description: "Failed to sync smartwatch data. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
     }
   }
 
+  // Process metrics for charts
+  const processMetricsForChart = (metricType: string) => {
+    return metrics
+      .filter((m) => m.metric_type === metricType)
+      .sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime())
+      .slice(-24) // Last 24 data points
+      .map((m) => ({
+        time: new Date(m.recorded_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        value: m.value,
+        unit: m.unit,
+      }))
+  }
+
+  const getLatestMetric = (metricType: string) => {
+    const filtered = metrics.filter((m) => m.metric_type === metricType)
+    return filtered.length > 0 ? filtered[0] : null
+  }
+
+  const heartRateData = processMetricsForChart("heart_rate")
+  const bloodOxygenData = processMetricsForChart("blood_oxygen")
+  const stepsData = processMetricsForChart("steps")
+  const sleepData = processMetricsForChart("sleep_hours")
+
+  const latestHeartRate = getLatestMetric("heart_rate")
+  const latestBloodOxygen = getLatestMetric("blood_oxygen")
+  const latestSteps = getLatestMetric("steps")
+  const latestSleep = getLatestMetric("sleep_hours")
+
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Smartwatch Integration</h1>
-          <p className="text-muted-foreground">Connect your smartwatch to monitor real-time health metrics</p>
-        </div>
-        <ThemeToggle />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Heart className="h-5 w-5 text-rose-500" />
-              Live Health Metrics
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground mb-6">Real-time health metrics from your connected smartwatch</p>
-
-            <Tabs defaultValue="all" onValueChange={setActiveTab}>
-              <TabsList className="mb-6">
-                <TabsTrigger value="all">All Metrics</TabsTrigger>
-                <TabsTrigger value="cardiac">Cardiac</TabsTrigger>
-                <TabsTrigger value="activity">Activity</TabsTrigger>
-              </TabsList>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {(activeTab === "all" || activeTab === "cardiac") && (
-                  <div className="bg-accent/30 p-4 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Heart className="h-5 w-5 text-rose-500" />
-                      <h3 className="font-medium">Heart Rate</h3>
-                      <div className="ml-auto">→</div>
-                    </div>
-                    <div className="text-xs text-muted-foreground mb-1">Last updated: 9:42:01 am</div>
-                    <div className="text-3xl font-semibold text-green-500 mb-1">
-                      72 <span className="text-sm font-normal">bpm</span>{" "}
-                      <span className="text-xs bg-accent px-2 py-0.5 rounded ml-2">normal</span>
-                    </div>
-                    <Progress value={40} className="h-2 bg-blue-200" />
-                  </div>
-                )}
-
-                {(activeTab === "all" || activeTab === "cardiac") && (
-                  <div className="bg-accent/30 p-4 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Activity className="h-5 w-5 text-rose-500" />
-                      <h3 className="font-medium">Blood Pressure</h3>
-                      <div className="ml-auto text-rose-500">↓</div>
-                    </div>
-                    <div className="text-xs text-muted-foreground mb-1">Last updated: 9:42:01 am</div>
-                    <div className="text-3xl font-semibold text-green-500 mb-1">
-                      120/80 <span className="text-xs bg-accent px-2 py-0.5 rounded ml-2">normal</span>
-                    </div>
-                    <Progress value={60} className="h-2 bg-blue-200" />
-                  </div>
-                )}
-
-                {(activeTab === "all" || activeTab === "cardiac") && (
-                  <div className="bg-accent/30 p-4 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Activity className="h-5 w-5 text-blue-500" />
-                      <h3 className="font-medium">Blood Oxygen</h3>
-                      <div className="ml-auto">→</div>
-                    </div>
-                    <div className="text-xs text-muted-foreground mb-1">Last updated: 9:42:01 am</div>
-                    <div className="text-3xl font-semibold text-green-500 mb-1">
-                      98 <span className="text-sm font-normal">%</span>{" "}
-                      <span className="text-xs bg-accent px-2 py-0.5 rounded ml-2">normal</span>
-                    </div>
-                    <Progress value={98} className="h-2 bg-blue-200" />
-                  </div>
-                )}
-
-                {(activeTab === "all" || activeTab === "activity") && (
-                  <div className="bg-accent/30 p-4 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Footprints className="h-5 w-5 text-green-500" />
-                      <h3 className="font-medium">Steps</h3>
-                      <div className="ml-auto text-green-500">↑</div>
-                    </div>
-                    <div className="text-xs text-muted-foreground mb-1">Last updated: 9:42:01 am</div>
-                    <div className="text-3xl font-semibold text-green-500 mb-1">
-                      6542 <span className="text-xs bg-accent px-2 py-0.5 rounded ml-2">normal</span>
-                    </div>
-                    <Progress value={65} className="h-2 bg-blue-200" />
-                  </div>
-                )}
-
-                {(activeTab === "all" || activeTab === "activity") && (
-                  <div className="bg-accent/30 p-4 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Clock className="h-5 w-5 text-indigo-500" />
-                      <h3 className="font-medium">Sleep</h3>
-                      <div className="ml-auto text-green-500">↑</div>
-                    </div>
-                    <div className="text-xs text-muted-foreground mb-1">Last updated: 1:42:01 am</div>
-                    <div className="text-3xl font-semibold text-green-500 mb-1">7h</div>
-                    <Progress value={70} className="h-2 bg-blue-200" />
-                  </div>
-                )}
-
-                {(activeTab === "all" || activeTab === "activity") && (
-                  <div className="bg-accent/30 p-4 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Thermometer className="h-5 w-5 text-amber-500" />
-                      <h3 className="font-medium">Temperature</h3>
-                      <div className="ml-auto">→</div>
-                    </div>
-                    <div className="text-xs text-muted-foreground mb-1">Last updated: 9:42:01 am</div>
-                    <div className="text-3xl font-semibold text-green-500 mb-1">
-                      98.6 <span className="text-sm font-normal">°F</span>{" "}
-                      <span className="text-xs bg-accent px-2 py-0.5 rounded ml-2">normal</span>
-                    </div>
-                    <Progress value={50} className="h-2 bg-blue-200" />
-                  </div>
-                )}
-              </div>
-            </Tabs>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Watch className="h-5 w-5 text-blue-500" />
-              SmartWatch Integration
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground mb-6">Connect your smartwatch to monitor real-time health metrics</p>
-
-            <Tabs defaultValue="connected-devices">
-              <TabsList className="mb-6">
-                <TabsTrigger value="connected-devices">Connected Devices</TabsTrigger>
-                <TabsTrigger value="connect-new">Connect New Device</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="connected-devices">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-accent/30 p-4 rounded-lg">
-                    <div className="flex items-center justify-center mb-4">
-                      <Watch className="h-10 w-10 text-blue-500" />
-                    </div>
-                    <h3 className="text-xl font-semibold text-center mb-1">Apple Watch</h3>
-                    <p className="text-sm text-center text-muted-foreground mb-4">Connect your Apple Watch device</p>
-                    <div className="bg-blue-950 text-blue-200 p-3 rounded text-xs font-mono mb-2 overflow-x-auto">
-                      http://localhost:5000/api/smartwatch?userId=28&deviceType=apple_watch
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() =>
-                        handleCopyUrl("http://localhost:5000/api/smartwatch?userId=28&deviceType=apple_watch")
-                      }
-                    >
-                      <Copy className="h-3 w-3 mr-2" />
-                      Copy URL
-                    </Button>
-                  </div>
-
-                  <div className="bg-accent/30 p-4 rounded-lg">
-                    <div className="flex items-center justify-center mb-4">
-                      <Watch className="h-10 w-10 text-blue-500" />
-                    </div>
-                    <h3 className="text-xl font-semibold text-center mb-1">Fitbit</h3>
-                    <p className="text-sm text-center text-muted-foreground mb-4">Connect your Fitbit device</p>
-                    <div className="bg-blue-950 text-blue-200 p-3 rounded text-xs font-mono mb-2 overflow-x-auto">
-                      http://localhost:5000/api/smartwatch?userId=28&deviceType=fitbit
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => handleCopyUrl("http://localhost:5000/api/smartwatch?userId=28&deviceType=fitbit")}
-                    >
-                      <Copy className="h-3 w-3 mr-2" />
-                      Copy URL
-                    </Button>
-                  </div>
-
-                  <div className="bg-accent/30 p-4 rounded-lg">
-                    <div className="flex items-center justify-center mb-4">
-                      <Watch className="h-10 w-10 text-blue-500" />
-                    </div>
-                    <h3 className="text-xl font-semibold text-center mb-1">Samsung Galaxy Watch</h3>
-                    <p className="text-sm text-center text-muted-foreground mb-4">
-                      Connect your Samsung Galaxy Watch device
-                    </p>
-                    <div className="bg-blue-950 text-blue-200 p-3 rounded text-xs font-mono mb-2 overflow-x-auto">
-                      http://localhost:5000/api/smartwatch?userId=28&deviceType=samsung
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => handleCopyUrl("http://localhost:5000/api/smartwatch?userId=28&deviceType=samsung")}
-                    >
-                      <Copy className="h-3 w-3 mr-2" />
-                      Copy URL
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="connect-new">
-                <div className="bg-accent/20 p-6 rounded-lg">
-                  <h3 className="text-lg font-semibold mb-4">How to connect your smartwatch</h3>
-                  <ol className="list-decimal list-inside space-y-2 mb-6">
-                    <li>Install the MediKey companion app on your smartwatch</li>
-                    <li>Open the app and select "Connect to MediKey"</li>
-                    <li>Enter the URL provided above or scan the QR code</li>
-                    <li>Authorize the connection on your smartwatch</li>
-                    <li>Your health data will now sync automatically</li>
-                  </ol>
-
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Connect New Device
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Add New Device</DialogTitle>
-                        <DialogDescription>
-                          Enter the details of your smartwatch to connect it to MediKey.
-                        </DialogDescription>
-                      </DialogHeader>
-
-                      <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="device-name" className="text-right">
-                            Device Name
-                          </Label>
-                          <Input id="device-name" placeholder="My Apple Watch" className="col-span-3" />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="device-type" className="text-right">
-                            Device Type
-                          </Label>
-                          <Select defaultValue="apple_watch">
-                            <SelectTrigger className="col-span-3">
-                              <SelectValue placeholder="Select device type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="apple_watch">Apple Watch</SelectItem>
-                              <SelectItem value="fitbit">Fitbit</SelectItem>
-                              <SelectItem value="samsung">Samsung Galaxy Watch</SelectItem>
-                              <SelectItem value="garmin">Garmin</SelectItem>
-                              <SelectItem value="other">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <DialogFooter>
-                        <Button type="submit">Connect Device</Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>AI Health Assistant</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground mb-6">
-            Ask questions about your health records or get information about medical terms
-          </p>
-
-          <div className="flex gap-2">
-            <Input placeholder="Ask a question about your health..." className="flex-1" />
-            <Button>Ask</Button>
+    <div className="analytics-theme min-h-screen">
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-2xl font-bold">SmartWatch Integration</h1>
+            <p className="text-muted-foreground">Monitor your health metrics in real-time</p>
           </div>
-
-          <p className="mt-4 text-sm text-muted-foreground">
-            Example questions: "What does my last blood test show?", "What are normal cholesterol levels?"
-          </p>
-
-          <div className="mt-6 text-center">
-            <Button variant="link" className="text-blue-500">
-              Go to AI Assistant for full conversation
+          <div className="flex items-center gap-4">
+            <Badge variant={isConnected ? "default" : "destructive"} className="gap-1">
+              {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+              {isConnected ? "Connected" : "Disconnected"}
+            </Badge>
+            <Button onClick={handleSync} disabled={isLoading} className="gap-2 bg-yellow-500 hover:bg-yellow-600">
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Sync Now
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Device Status */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card className="bg-white/50 dark:bg-black/50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Connected Device</CardTitle>
+              <Watch className="h-4 w-4 text-yellow-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">Apple Watch Series 9</div>
+              <p className="text-xs text-muted-foreground">Battery: 85% • watchOS 10.1</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white/50 dark:bg-black/50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Last Sync</CardTitle>
+              <RefreshCw className="h-4 w-4 text-yellow-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {lastSync.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </div>
+              <p className="text-xs text-muted-foreground">{lastSync.toLocaleDateString()}</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white/50 dark:bg-black/50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Data Points</CardTitle>
+              <Activity className="h-4 w-4 text-yellow-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{metrics.length}</div>
+              <p className="text-xs text-muted-foreground">Total metrics collected</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Current Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card className="bg-white/50 dark:bg-black/50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Heart Rate</CardTitle>
+              <Heart className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {latestHeartRate ? `${Math.round(latestHeartRate.value)}` : "--"}
+                <span className="text-sm font-normal text-muted-foreground ml-1">bpm</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {latestHeartRate ? new Date(latestHeartRate.recorded_at).toLocaleTimeString() : "No data"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white/50 dark:bg-black/50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Blood Oxygen</CardTitle>
+              <Droplets className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {latestBloodOxygen ? `${Math.round(latestBloodOxygen.value)}` : "--"}
+                <span className="text-sm font-normal text-muted-foreground ml-1">%</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {latestBloodOxygen ? new Date(latestBloodOxygen.recorded_at).toLocaleTimeString() : "No data"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white/50 dark:bg-black/50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Steps Today</CardTitle>
+              <Activity className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {latestSteps ? Math.round(latestSteps.value).toLocaleString() : "--"}
+              </div>
+              <p className="text-xs text-muted-foreground">Goal: 10,000 steps</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white/50 dark:bg-black/50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Sleep Last Night</CardTitle>
+              <Moon className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {latestSleep ? `${latestSleep.value.toFixed(1)}` : "--"}
+                <span className="text-sm font-normal text-muted-foreground ml-1">hrs</span>
+              </div>
+              <p className="text-xs text-muted-foreground">Goal: 7-9 hours</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Charts */}
+        <Tabs defaultValue="heart-rate" className="w-full">
+          <TabsList className="mb-6">
+            <TabsTrigger value="heart-rate">Heart Rate</TabsTrigger>
+            <TabsTrigger value="blood-oxygen">Blood Oxygen</TabsTrigger>
+            <TabsTrigger value="activity">Activity</TabsTrigger>
+            <TabsTrigger value="sleep">Sleep</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="heart-rate">
+            <Card className="bg-white/50 dark:bg-black/50">
+              <CardHeader>
+                <CardTitle>Heart Rate Trends</CardTitle>
+                <CardDescription>Your heart rate over the last 24 hours</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={heartRateData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="time" />
+                      <YAxis />
+                      <Tooltip
+                        formatter={(value: any) => [`${value} bpm`, "Heart Rate"]}
+                        labelFormatter={(label) => `Time: ${label}`}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#ef4444"
+                        strokeWidth={2}
+                        dot={{ fill: "#ef4444", strokeWidth: 2, r: 4 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="blood-oxygen">
+            <Card className="bg-white/50 dark:bg-black/50">
+              <CardHeader>
+                <CardTitle>Blood Oxygen Levels</CardTitle>
+                <CardDescription>Your blood oxygen saturation over the last 24 hours</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={bloodOxygenData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="time" />
+                      <YAxis domain={[95, 100]} />
+                      <Tooltip
+                        formatter={(value: any) => [`${value}%`, "Blood Oxygen"]}
+                        labelFormatter={(label) => `Time: ${label}`}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#3b82f6"
+                        strokeWidth={2}
+                        dot={{ fill: "#3b82f6", strokeWidth: 2, r: 4 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="activity">
+            <Card className="bg-white/50 dark:bg-black/50">
+              <CardHeader>
+                <CardTitle>Daily Activity</CardTitle>
+                <CardDescription>Your step count over the last 7 days</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={stepsData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="time" />
+                      <YAxis />
+                      <Tooltip
+                        formatter={(value: any) => [`${value.toLocaleString()} steps`, "Steps"]}
+                        labelFormatter={(label) => `Date: ${label}`}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#10b981"
+                        strokeWidth={2}
+                        dot={{ fill: "#10b981", strokeWidth: 2, r: 4 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="sleep">
+            <Card className="bg-white/50 dark:bg-black/50">
+              <CardHeader>
+                <CardTitle>Sleep Patterns</CardTitle>
+                <CardDescription>Your sleep duration over the last 7 nights</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={sleepData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="time" />
+                      <YAxis domain={[0, 12]} />
+                      <Tooltip
+                        formatter={(value: any) => [`${value.toFixed(1)} hours`, "Sleep"]}
+                        labelFormatter={(label) => `Date: ${label}`}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#8b5cf6"
+                        strokeWidth={2}
+                        dot={{ fill: "#8b5cf6", strokeWidth: 2, r: 4 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Device Management */}
+        <Card className="mt-8 bg-white/50 dark:bg-black/50">
+          <CardHeader>
+            <CardTitle>Device Management</CardTitle>
+            <CardDescription>Manage your connected health devices</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex items-center gap-3">
+                  <Watch className="h-8 w-8 text-yellow-500" />
+                  <div>
+                    <h3 className="font-medium">Apple Watch Series 9</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Connected • Last sync: {lastSync.toLocaleTimeString()}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm">
+                    Configure
+                  </Button>
+                  <Button variant="outline" size="sm" className="text-red-500">
+                    Disconnect
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-4 border rounded-lg border-dashed">
+                <div className="flex items-center gap-3">
+                  <Smartphone className="h-8 w-8 text-muted-foreground" />
+                  <div>
+                    <h3 className="font-medium text-muted-foreground">Add New Device</h3>
+                    <p className="text-sm text-muted-foreground">Connect additional health monitoring devices</p>
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add Device
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

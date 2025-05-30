@@ -10,7 +10,7 @@ export const db = drizzle(sql)
 // Helper function for direct SQL queries
 export async function executeQuery(query: string, params: any[] = []) {
   try {
-    return await sql(query, params)
+    return await sql.query(query, params)
   } catch (error) {
     console.error("Database query error:", error)
     throw error

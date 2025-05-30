@@ -8,14 +8,16 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
+import { authenticateUser } from "@/app/actions/auth"
+import { useToast } from "@/hooks/use-toast"
+import { Loader2 } from "lucide-react"
 
 export default function SignInPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [formData, setFormData] = useState({
     username: "",
     password: "",
-    rememberMe: false,
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
@@ -25,45 +27,48 @@ export default function SignInPage() {
     setFormData({ ...formData, [name]: value })
   }
 
-  const handleCheckboxChange = (checked: boolean) => {
-    setFormData({ ...formData, rememberMe: checked })
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
-    // Get stored users
-    const storedUsers = JSON.parse(localStorage.getItem("medikey_users") || "[]")
+    if (!formData.username || !formData.password) {
+      setError("Username and password are required")
+      setIsLoading(false)
+      return
+    }
 
-    // Find user
-    const foundUser = storedUsers.find(
-      (user: any) => user.username === formData.username && user.password === formData.password,
-    )
+    try {
+      const result = await authenticateUser(formData.username, formData.password)
 
-    if (foundUser) {
-      // Create user session
-      const userData = {
-        name: formData.username,
-        fullName: foundUser.fullName || formData.username,
-        email: foundUser.email || "",
-        initial: formData.username.charAt(0).toUpperCase(),
-        lastLogin: new Date().toISOString(),
-      }
+      if (result.success) {
+        // Store user info in localStorage for session
+        localStorage.setItem(
+          "medikey_user",
+          JSON.stringify({
+            id: result.user.id,
+            name: result.user.username,
+            fullName: result.user.full_name,
+            email: result.user.email,
+            patientId: result.user.patient_id,
+            initial: result.user.username.charAt(0).toUpperCase(),
+          }),
+        )
 
-      if (formData.rememberMe) {
-        localStorage.setItem("medikey_user", JSON.stringify(userData))
-      } else {
-        sessionStorage.setItem("medikey_user", JSON.stringify(userData))
-      }
+        toast({
+          title: "Welcome back!",
+          description: "You have been signed in successfully.",
+        })
 
-      setTimeout(() => {
+        // Redirect to dashboard
         router.push("/")
-        setIsLoading(false)
-      }, 1500)
-    } else {
-      setError("Invalid username or password")
+      } else {
+        setError(result.error || "Failed to sign in")
+      }
+    } catch (err) {
+      console.error("Signin error:", err)
+      setError("An unexpected error occurred. Please try again.")
+    } finally {
       setIsLoading(false)
     }
   }
@@ -80,8 +85,8 @@ export default function SignInPage() {
           </div>
         </div>
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-white mb-2">Sign in to your account</h1>
-          <p className="text-gray-400">Access your medical records securely</p>
+          <h1 className="text-2xl font-bold text-white mb-2">Welcome back</h1>
+          <p className="text-gray-400">Sign in to access your health dashboard</p>
         </div>
 
         {error && (
@@ -97,10 +102,11 @@ export default function SignInPage() {
               <Input
                 id="username"
                 name="username"
-                placeholder="manasvi"
+                placeholder="Enter your username"
                 value={formData.username}
                 onChange={handleInputChange}
-                className="bg-blue-950/50 border-blue-800"
+                className="bg-blue-950/50 border-blue-800 text-white placeholder:text-gray-400"
+                disabled={isLoading}
               />
             </div>
             <div>
@@ -111,25 +117,22 @@ export default function SignInPage() {
                 id="password"
                 name="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder="Enter your password"
                 value={formData.password}
                 onChange={handleInputChange}
-                className="bg-blue-950/50 border-blue-800"
+                className="bg-blue-950/50 border-blue-800 text-white placeholder:text-gray-400"
+                disabled={isLoading}
               />
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Checkbox id="remember" checked={formData.rememberMe} onCheckedChange={handleCheckboxChange} />
-                <Label htmlFor="remember" className="text-sm text-gray-300">
-                  Remember me
-                </Label>
-              </div>
-              <Link href="#" className="text-sm text-blue-400 hover:text-blue-300">
-                Forgot password?
-              </Link>
-            </div>
             <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600" disabled={isLoading}>
-              {isLoading ? "Signing in..." : "Sign in"}
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In"
+              )}
             </Button>
           </div>
         </form>
@@ -139,19 +142,6 @@ export default function SignInPage() {
             Don't have an account?{" "}
             <Link href="/auth/signup" className="text-blue-400 hover:text-blue-300">
               Sign up
-            </Link>
-          </p>
-        </div>
-
-        <div className="mt-8 text-center text-xs text-gray-500">
-          <p>
-            By signing in, you agree to our{" "}
-            <Link href="#" className="text-blue-400">
-              Terms of Service
-            </Link>{" "}
-            and{" "}
-            <Link href="#" className="text-blue-400">
-              Privacy Policy
             </Link>
           </p>
         </div>

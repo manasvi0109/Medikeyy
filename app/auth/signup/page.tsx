@@ -9,9 +9,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { createUser } from "@/app/actions/auth"
+import { useToast } from "@/hooks/use-toast"
+import { Loader2 } from "lucide-react"
 
 export default function SignUpPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [formData, setFormData] = useState({
     username: "",
     fullName: "",
@@ -32,13 +36,13 @@ export default function SignUpPage() {
     setFormData({ ...formData, agreeTerms: checked })
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
     // Basic validation
-    if (!formData.username || !formData.email || !formData.password) {
+    if (!formData.username || !formData.email || !formData.password || !formData.fullName) {
       setError("All fields are required")
       setIsLoading(false)
       return
@@ -50,50 +54,56 @@ export default function SignUpPage() {
       return
     }
 
+    if (formData.password.length < 8) {
+      setError("Password must be at least 8 characters long")
+      setIsLoading(false)
+      return
+    }
+
     if (!formData.agreeTerms) {
       setError("You must agree to the terms and conditions")
       setIsLoading(false)
       return
     }
 
-    // Get existing users or initialize empty array
-    const existingUsers = JSON.parse(localStorage.getItem("medikey_users") || "[]")
-
-    // Check if username already exists
-    if (existingUsers.some((user: any) => user.username === formData.username)) {
-      setError("Username already exists")
-      setIsLoading(false)
-      return
-    }
-
-    // Add new user
-    const newUser = {
-      username: formData.username,
-      fullName: formData.fullName,
-      email: formData.email,
-      password: formData.password, // In a real app, this would be hashed
-      createdAt: new Date().toISOString(),
-    }
-
-    existingUsers.push(newUser)
-    localStorage.setItem("medikey_users", JSON.stringify(existingUsers))
-
-    // Store user info in localStorage for current session
-    localStorage.setItem(
-      "medikey_user",
-      JSON.stringify({
-        name: formData.username,
+    try {
+      const result = await createUser({
+        username: formData.username,
         fullName: formData.fullName,
         email: formData.email,
-        initial: formData.username.charAt(0).toUpperCase(),
-      }),
-    )
+        password: formData.password,
+      })
 
-    // Redirect to dashboard
-    setTimeout(() => {
-      router.push("/")
+      if (result.success) {
+        // Store user info in localStorage for session
+        localStorage.setItem(
+          "medikey_user",
+          JSON.stringify({
+            id: result.user.id,
+            name: result.user.username,
+            fullName: result.user.full_name,
+            email: result.user.email,
+            patientId: result.user.patient_id,
+            initial: result.user.username.charAt(0).toUpperCase(),
+          }),
+        )
+
+        toast({
+          title: "Account created successfully!",
+          description: `Welcome to MediKey! Your patient ID is ${result.user.patient_id}`,
+        })
+
+        // Redirect to dashboard
+        router.push("/")
+      } else {
+        setError(result.error || "Failed to create account")
+      }
+    } catch (err) {
+      console.error("Signup error:", err)
+      setError("An unexpected error occurred. Please try again.")
+    } finally {
       setIsLoading(false)
-    }, 1500)
+    }
   }
 
   return (
@@ -125,10 +135,11 @@ export default function SignUpPage() {
               <Input
                 id="username"
                 name="username"
-                placeholder="Choose a username"
+                placeholder="Enter your username"
                 value={formData.username}
                 onChange={handleInputChange}
-                className="bg-blue-950/50 border-blue-800"
+                className="bg-blue-950/50 border-blue-800 text-white placeholder:text-gray-400"
+                disabled={isLoading}
               />
             </div>
             <div>
@@ -141,7 +152,8 @@ export default function SignUpPage() {
                 placeholder="Enter your full name"
                 value={formData.fullName}
                 onChange={handleInputChange}
-                className="bg-blue-950/50 border-blue-800"
+                className="bg-blue-950/50 border-blue-800 text-white placeholder:text-gray-400"
+                disabled={isLoading}
               />
             </div>
             <div>
@@ -155,7 +167,8 @@ export default function SignUpPage() {
                 placeholder="Enter your email"
                 value={formData.email}
                 onChange={handleInputChange}
-                className="bg-blue-950/50 border-blue-800"
+                className="bg-blue-950/50 border-blue-800 text-white placeholder:text-gray-400"
+                disabled={isLoading}
               />
             </div>
             <div>
@@ -169,7 +182,8 @@ export default function SignUpPage() {
                 placeholder="Create a password"
                 value={formData.password}
                 onChange={handleInputChange}
-                className="bg-blue-950/50 border-blue-800"
+                className="bg-blue-950/50 border-blue-800 text-white placeholder:text-gray-400"
+                disabled={isLoading}
               />
             </div>
             <div>
@@ -183,24 +197,37 @@ export default function SignUpPage() {
                 placeholder="Confirm your password"
                 value={formData.confirmPassword}
                 onChange={handleInputChange}
-                className="bg-blue-950/50 border-blue-800"
+                className="bg-blue-950/50 border-blue-800 text-white placeholder:text-gray-400"
+                disabled={isLoading}
               />
             </div>
             <div className="flex items-center space-x-2">
-              <Checkbox id="terms" checked={formData.agreeTerms} onCheckedChange={handleCheckboxChange} />
+              <Checkbox
+                id="terms"
+                checked={formData.agreeTerms}
+                onCheckedChange={handleCheckboxChange}
+                disabled={isLoading}
+              />
               <Label htmlFor="terms" className="text-sm text-gray-300">
                 I agree to the{" "}
-                <Link href="#" className="text-blue-400">
+                <Link href="#" className="text-blue-400 hover:text-blue-300">
                   Terms of Service
                 </Link>{" "}
                 and{" "}
-                <Link href="#" className="text-blue-400">
+                <Link href="#" className="text-blue-400 hover:text-blue-300">
                   Privacy Policy
                 </Link>
               </Label>
             </div>
             <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600" disabled={isLoading}>
-              {isLoading ? "Creating account..." : "Create Account"}
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating account...
+                </>
+              ) : (
+                "Create Account"
+              )}
             </Button>
           </div>
         </form>

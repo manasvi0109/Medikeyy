@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@ai-sdk/xai": "latest",
     "@aws-sdk/client-rds-data": "latest",
     "@cloudflare/workers-types": "latest",
     "@electric-sql/pglite": "latest",
@@ -51,9 +52,12 @@
     "@types/better-sqlite3": "latest",
     "@types/pg": "latest",
     "@types/sql.js": "latest",
+    "@upstash/redis": "latest",
     "@vercel/postgres": "latest",
     "@xata.io/client": "latest",
+    "ai": "latest",
     "autoprefixer": "^10.4.20",
+    "bcryptjs": "latest",
     "better-sqlite3": "latest",
     "bun-types": "latest",
     "class-variance-authority": "^0.7.1",
