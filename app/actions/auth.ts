@@ -1,6 +1,6 @@
 "use server"
 
-import { executeQuery, clearAllTables } from "@/lib/db"
+import { executeQuery } from "@/lib/db"
 import bcrypt from "bcryptjs"
 
 export type User = {
@@ -12,12 +12,13 @@ export type User = {
   created_at: string
 }
 
-// Generate a truly unique patient ID
-function generateUniquePatientId(username: string): string {
+// Generate a truly unique patient ID with more entropy
+function generateUniquePatientId(username: string, attempt = 0): string {
   const timestamp = Date.now()
-  const randomPart = Math.random().toString(36).substring(2, 10).toUpperCase()
-  const userPart = username.substring(0, 4).toUpperCase().padEnd(4, "X")
-  return `MK-${userPart}-${timestamp}-${randomPart}`
+  const randomPart = Math.random().toString(36).substring(2, 12).toUpperCase()
+  const userPart = username.substring(0, 3).toUpperCase().padEnd(3, "X")
+  const attemptSuffix = attempt > 0 ? `-${attempt}` : ""
+  return `MK-${userPart}-${timestamp}-${randomPart}${attemptSuffix}`
 }
 
 export async function createUser(userData: {
@@ -45,10 +46,16 @@ export async function createUser(userData: {
       email: normalizedData.email,
     })
 
-    // Check if username already exists
-    const existingUsername = await executeQuery("SELECT id, username FROM users WHERE username = $1", [
-      normalizedData.username,
-    ])
+    // Check if username already exists with retry logic
+    let existingUsername
+    try {
+      existingUsername = await executeQuery("SELECT id, username FROM users WHERE username = $1", [
+        normalizedData.username,
+      ])
+    } catch (error) {
+      console.error("Error checking existing username:", error)
+      return { success: false, error: "Database error. Please try again." }
+    }
 
     if (existingUsername && existingUsername.length > 0) {
       console.log("Username already exists:", normalizedData.username)
@@ -59,7 +66,13 @@ export async function createUser(userData: {
     }
 
     // Check if email already exists
-    const existingEmail = await executeQuery("SELECT id, email FROM users WHERE email = $1", [normalizedData.email])
+    let existingEmail
+    try {
+      existingEmail = await executeQuery("SELECT id, email FROM users WHERE email = $1", [normalizedData.email])
+    } catch (error) {
+      console.error("Error checking existing email:", error)
+      return { success: false, error: "Database error. Please try again." }
+    }
 
     if (existingEmail && existingEmail.length > 0) {
       console.log("Email already exists:", normalizedData.email)
@@ -72,21 +85,27 @@ export async function createUser(userData: {
     // Hash password
     const passwordHash = await bcrypt.hash(normalizedData.password, 12)
 
-    // Generate unique patient ID with multiple attempts if needed
+    // Generate unique patient ID with multiple attempts
     let patientId = generateUniquePatientId(normalizedData.username)
     let attempts = 0
-    const maxAttempts = 5
+    const maxAttempts = 10
 
     while (attempts < maxAttempts) {
-      const existingPatientId = await executeQuery("SELECT id FROM users WHERE patient_id = $1", [patientId])
+      try {
+        const existingPatientId = await executeQuery("SELECT id FROM users WHERE patient_id = $1", [patientId])
 
-      if (!existingPatientId || existingPatientId.length === 0) {
-        break // Patient ID is unique
+        if (!existingPatientId || existingPatientId.length === 0) {
+          break // Patient ID is unique
+        }
+
+        attempts++
+        patientId = generateUniquePatientId(normalizedData.username, attempts)
+        console.log(`Patient ID collision attempt ${attempts}, using new ID:`, patientId)
+      } catch (error) {
+        console.error("Error checking patient ID:", error)
+        attempts++
+        patientId = generateUniquePatientId(normalizedData.username, attempts)
       }
-
-      attempts++
-      patientId = generateUniquePatientId(normalizedData.username + attempts)
-      console.log(`Patient ID collision attempt ${attempts}, using new ID:`, patientId)
     }
 
     if (attempts >= maxAttempts) {
@@ -95,13 +114,34 @@ export async function createUser(userData: {
 
     console.log("Final patient ID:", patientId)
 
-    // Insert user into database
-    const result = await executeQuery(
-      `INSERT INTO users (username, full_name, email, password_hash, patient_id) 
-       VALUES ($1, $2, $3, $4, $5) 
-       RETURNING id, username, full_name, email, patient_id, created_at`,
-      [normalizedData.username, normalizedData.fullName, normalizedData.email, passwordHash, patientId],
-    )
+    // Insert user into database with transaction-like behavior
+    let result
+    try {
+      result = await executeQuery(
+        `INSERT INTO users (username, full_name, email, password_hash, patient_id) 
+         VALUES ($1, $2, $3, $4, $5) 
+         RETURNING id, username, full_name, email, patient_id, created_at`,
+        [normalizedData.username, normalizedData.fullName, normalizedData.email, passwordHash, patientId],
+      )
+    } catch (insertError) {
+      console.error("Error inserting user:", insertError)
+
+      // Handle specific constraint violations
+      if (insertError instanceof Error) {
+        const errorMessage = insertError.message.toLowerCase()
+        if (errorMessage.includes("users_username_key")) {
+          return { success: false, error: "Username already exists. Please choose a different username." }
+        }
+        if (errorMessage.includes("users_email_key")) {
+          return { success: false, error: "Email already exists. Please use a different email address." }
+        }
+        if (errorMessage.includes("users_patient_id_key")) {
+          return { success: false, error: "Patient ID conflict. Please try again." }
+        }
+      }
+
+      return { success: false, error: "Failed to create user account. Please try again." }
+    }
 
     if (!result || result.length === 0) {
       return { success: false, error: "Failed to create user account. Please try again." }
@@ -134,29 +174,8 @@ export async function createUser(userData: {
       },
     }
   } catch (error) {
-    console.error("Error creating user:", error)
-
-    // Handle specific database constraint errors
-    if (error instanceof Error) {
-      const errorMessage = error.message.toLowerCase()
-      if (
-        errorMessage.includes("users_username_key") ||
-        errorMessage.includes('duplicate key value violates unique constraint "users_username_key"')
-      ) {
-        return { success: false, error: "Username already exists. Please choose a different username." }
-      }
-      if (
-        errorMessage.includes("users_email_key") ||
-        errorMessage.includes('duplicate key value violates unique constraint "users_email_key"')
-      ) {
-        return { success: false, error: "Email already exists. Please use a different email address." }
-      }
-      if (errorMessage.includes("users_patient_id_key")) {
-        return { success: false, error: "Patient ID conflict. Please try again." }
-      }
-    }
-
-    return { success: false, error: "Failed to create user account. Please try again." }
+    console.error("Unexpected error creating user:", error)
+    return { success: false, error: "An unexpected error occurred. Please try again." }
   }
 }
 
@@ -249,16 +268,6 @@ export async function getAllUsers() {
   }
 }
 
-export async function clearAllData() {
-  try {
-    const result = await clearAllTables()
-    return { success: true, message: `Cleared all data. Deleted ${result.deletedUsers} users.` }
-  } catch (error) {
-    console.error("Error clearing all data:", error)
-    return { success: false, error: "Failed to clear all data" }
-  }
-}
-
 export async function getUserProfile(patientId: string) {
   try {
     if (!patientId) {
@@ -315,5 +324,48 @@ export async function updateUserProfile(patientId: string, profileData: any) {
   } catch (error) {
     console.error("Error updating user profile:", error)
     return { success: false, error: "Failed to update user profile" }
+  }
+}
+
+// Function to create a demo user for testing with unique credentials
+export async function createDemoUser() {
+  try {
+    const timestamp = Date.now()
+    const demoData = {
+      username: `demo_${timestamp}`,
+      fullName: "Demo User",
+      email: `demo_${timestamp}@medikey.com`,
+      password: "password123",
+    }
+
+    const result = await createUser(demoData)
+    return result
+  } catch (error) {
+    console.error("Error creating demo user:", error)
+    return { success: false, error: "Failed to create demo user" }
+  }
+}
+
+// Function to completely clear the database
+export async function clearDatabase() {
+  try {
+    // Clear tables in correct order to respect foreign key constraints
+    await executeQuery("DELETE FROM user_profiles")
+    await executeQuery("DELETE FROM medical_records")
+    await executeQuery("DELETE FROM family_members")
+    await executeQuery("DELETE FROM health_metrics")
+    await executeQuery("DELETE FROM connected_devices")
+    await executeQuery("DELETE FROM ai_conversations")
+    await executeQuery("DELETE FROM smartwatch_data")
+    const result = await executeQuery("DELETE FROM users RETURNING id")
+
+    // Reset sequences
+    await executeQuery("ALTER SEQUENCE users_id_seq RESTART WITH 1")
+    await executeQuery("ALTER SEQUENCE user_profiles_id_seq RESTART WITH 1")
+
+    return { success: true, deletedUsers: result.length }
+  } catch (error) {
+    console.error("Error clearing database:", error)
+    throw error
   }
 }

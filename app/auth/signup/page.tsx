@@ -13,11 +13,12 @@ import {
   createUser,
   checkUsernameAvailability,
   checkEmailAvailability,
-  clearAllData,
+  createDemoUser,
+  clearDatabase,
   getAllUsers,
 } from "@/app/actions/auth"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, Check, X, Trash2, Users } from "lucide-react"
+import { Loader2, Check, X, User, Trash2, Database } from "lucide-react"
 
 export default function SignUpPage() {
   const router = useRouter()
@@ -31,8 +32,9 @@ export default function SignUpPage() {
     agreeTerms: false,
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [isCreatingDemo, setIsCreatingDemo] = useState(false)
   const [isClearing, setIsClearing] = useState(false)
-  const [isCheckingUsers, setIsCheckingUsers] = useState(false)
+  const [isChecking, setIsChecking] = useState(false)
   const [error, setError] = useState("")
   const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle")
   const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "available" | "taken">("idle")
@@ -101,34 +103,32 @@ export default function SignUpPage() {
     setFormData({ ...formData, agreeTerms: checked })
   }
 
-  const handleClearData = async () => {
-    if (!confirm("Are you sure you want to clear ALL data from the database? This cannot be undone.")) {
+  const handleClearDatabase = async () => {
+    if (
+      !confirm(
+        "⚠️ WARNING: This will permanently delete ALL users and data from the database. This cannot be undone. Are you absolutely sure?",
+      )
+    ) {
       return
     }
 
     setIsClearing(true)
     try {
-      const result = await clearAllData()
-      if (result.success) {
-        toast({
-          title: "Database cleared",
-          description: result.message,
-        })
-        // Reset form validation states
-        setUsernameStatus("idle")
-        setEmailStatus("idle")
-        setError("")
-      } else {
-        toast({
-          title: "Error",
-          description: result.error,
-          variant: "destructive",
-        })
-      }
+      const result = await clearDatabase()
+      toast({
+        title: "Database cleared successfully",
+        description: `Deleted ${result.deletedUsers} users and all associated data`,
+      })
+
+      // Reset form validation states
+      setUsernameStatus("idle")
+      setEmailStatus("idle")
+      setError("")
     } catch (error) {
+      console.error("Error clearing database:", error)
       toast({
         title: "Error",
-        description: "Failed to clear database",
+        description: "Failed to clear database. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -137,13 +137,13 @@ export default function SignUpPage() {
   }
 
   const handleCheckUsers = async () => {
-    setIsCheckingUsers(true)
+    setIsChecking(true)
     try {
       const result = await getAllUsers()
       if (result.success) {
         console.log("Current users in database:", result.users)
         toast({
-          title: "Users checked",
+          title: "Database status",
           description: `Found ${result.users.length} users in database. Check console for details.`,
         })
       } else {
@@ -156,11 +156,54 @@ export default function SignUpPage() {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to check users",
+        description: "Failed to check database status",
         variant: "destructive",
       })
     } finally {
-      setIsCheckingUsers(false)
+      setIsChecking(false)
+    }
+  }
+
+  const handleCreateDemo = async () => {
+    setIsCreatingDemo(true)
+    try {
+      const result = await createDemoUser()
+      if (result.success) {
+        // Store demo user info in localStorage
+        localStorage.setItem(
+          "medikey_user",
+          JSON.stringify({
+            id: result.user.id,
+            name: result.user.username,
+            fullName: result.user.full_name,
+            email: result.user.email,
+            patientId: result.user.patient_id,
+            initial: result.user.username.charAt(0).toUpperCase(),
+          }),
+        )
+
+        toast({
+          title: "Demo account created!",
+          description: `Demo user created with patient ID: ${result.user.patient_id}`,
+        })
+
+        // Redirect to dashboard
+        router.push("/")
+      } else {
+        toast({
+          title: "Error",
+          description: result.error,
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create demo account",
+        variant: "destructive",
+      })
+    } finally {
+      setIsCreatingDemo(false)
     }
   }
 
@@ -294,29 +337,50 @@ export default function SignUpPage() {
           <p className="text-gray-400">Start managing your medical records securely</p>
         </div>
 
-        {/* Debug buttons for development */}
-        <div className="mb-4 flex gap-2 justify-center">
+        {/* Database management buttons */}
+        <div className="mb-4 flex flex-wrap gap-2 justify-center">
+          <Button
+            onClick={handleCreateDemo}
+            variant="outline"
+            size="sm"
+            disabled={isCreatingDemo}
+            className="text-xs bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20"
+          >
+            {isCreatingDemo ? (
+              <>
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              <>
+                <User className="mr-1 h-3 w-3" />
+                Demo Account
+              </>
+            )}
+          </Button>
+
           <Button
             onClick={handleCheckUsers}
             variant="outline"
             size="sm"
-            disabled={isCheckingUsers}
+            disabled={isChecking}
             className="text-xs bg-blue-500/10 border-blue-500/50 text-blue-400 hover:bg-blue-500/20"
           >
-            {isCheckingUsers ? (
+            {isChecking ? (
               <>
                 <Loader2 className="mr-1 h-3 w-3 animate-spin" />
                 Checking...
               </>
             ) : (
               <>
-                <Users className="mr-1 h-3 w-3" />
-                Check Users
+                <Database className="mr-1 h-3 w-3" />
+                Check DB
               </>
             )}
           </Button>
+
           <Button
-            onClick={handleClearData}
+            onClick={handleClearDatabase}
             variant="outline"
             size="sm"
             disabled={isClearing}
@@ -330,14 +394,21 @@ export default function SignUpPage() {
             ) : (
               <>
                 <Trash2 className="mr-1 h-3 w-3" />
-                Clear All Data
+                Clear DB
               </>
             )}
           </Button>
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/50 text-red-500 px-4 py-3 rounded mb-4">{error}</div>
+          <div className="bg-red-500/10 border border-red-500/50 text-red-500 px-4 py-3 rounded mb-4">
+            {error}
+            {error.includes("duplicate key") && (
+              <div className="mt-2 text-xs">
+                Try clicking "Clear DB" button above to reset the database, then try again.
+              </div>
+            )}
+          </div>
         )}
 
         <form onSubmit={handleSubmit}>
