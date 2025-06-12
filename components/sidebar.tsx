@@ -16,34 +16,19 @@ import {
   Briefcase,
   Menu,
   X,
+  Watch,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { useIsMobile } from "@/components/responsive-utils"
+import { useAuth } from "@/components/auth-provider"
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const [user, setUser] = useState({
-    name: "manasvi",
-    initial: "M",
-    profileImage: null,
-  })
+  const { user } = useAuth()
   const isMobile = useIsMobile()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
-
-  // Load user data
-  useEffect(() => {
-    const storedUser = localStorage.getItem("medikey_user") || sessionStorage.getItem("medikey_user")
-    if (storedUser) {
-      const userData = JSON.parse(storedUser)
-      setUser({
-        name: userData.name || "manasvi",
-        initial: (userData.name?.[0] || "M").toUpperCase(),
-        profileImage: userData.profileImage || null,
-      })
-    }
-  }, [])
 
   // Close sidebar when route changes on mobile
   useEffect(() => {
@@ -106,6 +91,14 @@ export default function Sidebar() {
       hover: "hover:bg-pink-500/10 hover:text-pink-500",
     },
     {
+      title: "SmartWatch",
+      href: "/smartwatch",
+      icon: Watch,
+      color: "text-purple-500",
+      active: "bg-purple-500/10 text-purple-500",
+      hover: "hover:bg-purple-500/10 hover:text-purple-500",
+    },
+    {
       title: "AI Assistant",
       href: "/assistant",
       icon: Briefcase,
@@ -114,6 +107,11 @@ export default function Sidebar() {
       hover: "hover:bg-orange-500/10 hover:text-orange-500",
     },
   ]
+
+  // If no user is logged in, don't render the sidebar
+  if (!user) {
+    return null
+  }
 
   return (
     <>
@@ -218,7 +216,7 @@ export default function Sidebar() {
                 {user.profileImage ? (
                   <AvatarImage src={user.profileImage || "/placeholder.svg"} alt={user.name} />
                 ) : (
-                  <AvatarFallback>{user.initial}</AvatarFallback>
+                  <AvatarFallback>{user.initial || user.name.charAt(0).toUpperCase()}</AvatarFallback>
                 )}
               </Avatar>
               <div>

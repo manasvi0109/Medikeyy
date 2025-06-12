@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Progress } from "@/components/ui/progress"
 import { getLatestHealthMetric } from "@/app/actions/health-metrics"
@@ -27,6 +26,7 @@ export default function HealthMetricsSummary({
 }: HealthMetricsSummaryProps) {
   const [metric, setMetric] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<"normal" | "high" | "low" | "unknown">("unknown")
 
   const colorMap = {
@@ -59,26 +59,51 @@ export default function HealthMetricsSummary({
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!userId || !metricType) {
+        setError("Missing user ID or metric type")
+        setIsLoading(false)
+        return
+      }
+
       setIsLoading(true)
+      setError(null)
+
       try {
         const result = await getLatestHealthMetric(userId, metricType)
-        if (result.success && result.data) {
+
+        if (!result) {
+          setError("No response from server")
+          return
+        }
+
+        if (!result.success) {
+          setError(result.error || "Failed to fetch data")
+          return
+        }
+
+        if (result.data) {
           setMetric(result.data)
 
           // Determine status based on normal range
-          if (normalRange) {
-            const value = Number.parseFloat(result.data.value)
-            if (value < normalRange.min) {
-              setStatus("low")
-            } else if (value > normalRange.max) {
-              setStatus("high")
-            } else {
-              setStatus("normal")
+          if (normalRange && result.data.value !== undefined) {
+            const value = Number.parseFloat(result.data.value.toString())
+            if (!isNaN(value)) {
+              if (value < normalRange.min) {
+                setStatus("low")
+              } else if (value > normalRange.max) {
+                setStatus("high")
+              } else {
+                setStatus("normal")
+              }
             }
           }
+        } else {
+          // No data available, but not an error
+          setMetric(null)
         }
       } catch (error) {
         console.error("Error fetching health metric:", error)
+        setError("Failed to load health metric")
       } finally {
         setIsLoading(false)
       }
@@ -89,9 +114,11 @@ export default function HealthMetricsSummary({
 
   // Calculate progress value for the progress bar
   const getProgressValue = () => {
-    if (!metric || !normalRange) return 50
+    if (!metric || !normalRange || !metric.value) return 50
 
-    const value = Number.parseFloat(metric.value)
+    const value = Number.parseFloat(metric.value.toString())
+    if (isNaN(value)) return 50
+
     const range = normalRange.max - normalRange.min
     const normalized = ((value - normalRange.min) / range) * 100
 
@@ -101,9 +128,13 @@ export default function HealthMetricsSummary({
 
   // Format the recorded_at date
   const formatDate = (dateStr: string) => {
-    if (!dateStr) return ""
-    const date = new Date(dateStr)
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    if (!dateStr) return "Unknown"
+    try {
+      const date = new Date(dateStr)
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    } catch {
+      return "Invalid date"
+    }
   }
 
   // Get status indicator
@@ -148,14 +179,19 @@ export default function HealthMetricsSummary({
           <div className="h-8 bg-accent/50 rounded w-1/2 mb-2"></div>
           <div className="h-2 bg-accent/50 rounded"></div>
         </div>
+      ) : error ? (
+        <div className="text-sm text-red-500">Error: {error}</div>
       ) : metric ? (
         <>
           <div className="text-xs text-muted-foreground mb-1">Last updated: {formatDate(metric.recorded_at)}</div>
           <div className="text-3xl font-semibold text-green-500 mb-1">
-            {Number.parseFloat(metric.value).toFixed(1)} <span className="text-sm font-normal">{unit}</span>{" "}
+            {metric.value ? Number.parseFloat(metric.value.toString()).toFixed(1) : "0.0"}{" "}
+            <span className="text-sm font-normal">{unit}</span>{" "}
             {status !== "unknown" && (
               <span
-                className={`text-xs bg-accent px-2 py-0.5 rounded ml-2 ${status === "normal" ? "text-green-500" : status === "high" ? "text-red-500" : "text-amber-500"}`}
+                className={`text-xs bg-accent px-2 py-0.5 rounded ml-2 ${
+                  status === "normal" ? "text-green-500" : status === "high" ? "text-red-500" : "text-amber-500"
+                }`}
               >
                 {status}
               </span>
@@ -164,7 +200,10 @@ export default function HealthMetricsSummary({
           <Progress value={getProgressValue()} className={`h-2 ${colorMap[colorScheme].progress}`} />
         </>
       ) : (
-        <div className="text-sm text-muted-foreground">No data available</div>
+        <div className="text-sm text-muted-foreground">
+          No data available
+          <div className="text-xs mt-1">Connect your smartwatch to start tracking</div>
+        </div>
       )}
     </div>
   )

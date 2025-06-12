@@ -1,34 +1,175 @@
 import Link from "next/link"
-import { Calendar, FileText, Heart, Shield, Users, Briefcase } from "lucide-react"
+import { Calendar, FileText, Heart, Shield, Users, Briefcase, Watch, Activity } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { generateSampleData } from "@/app/actions/seed-data"
-
-// This function runs on the server to ensure data is available
-export async function generateMetadata() {
-  // Silently generate sample data on server if needed
-  try {
-    await generateSampleData("manasvi")
-  } catch (error) {
-    console.error("Error generating sample data:", error)
-  }
-
-  return {
-    title: "MediKey - Health Dashboard",
-    description: "Your personal health management platform",
-  }
-}
+import { Badge } from "@/components/ui/badge"
+import HealthMetricsSummary from "@/components/health-metrics-summary"
+import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
 
 export default function Dashboard() {
+  // Check if user is logged in via server-side cookie
+  const cookieStore = cookies()
+  const userCookie = cookieStore.get("medikey_user")
+
+  // If no user cookie, show a welcome page instead of redirecting
+  if (!userCookie) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+        <div className="flex items-center justify-center w-16 h-16 rounded-full bg-blue-600 text-white font-bold text-2xl mb-6">
+          M
+        </div>
+        <h1 className="text-4xl font-bold mb-4">Welcome to MediKey</h1>
+        <p className="text-xl text-muted-foreground mb-8 max-w-md">
+          Your personal health management platform. Securely store and access your medical records anytime, anywhere.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <Link href="/auth/signin">
+            <Button size="lg" className="px-8">
+              Sign In
+            </Button>
+          </Link>
+          <Link href="/auth/signup">
+            <Button size="lg" variant="outline" className="px-8">
+              Create Account
+            </Button>
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-16 max-w-4xl">
+          <div className="bg-accent/20 p-6 rounded-lg text-center">
+            <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-4">
+              <Shield className="h-6 w-6 text-blue-500" />
+            </div>
+            <h3 className="text-lg font-medium mb-2">Secure Storage</h3>
+            <p className="text-muted-foreground">Your medical data is encrypted and securely stored</p>
+          </div>
+
+          <div className="bg-accent/20 p-6 rounded-lg text-center">
+            <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-4">
+              <Activity className="h-6 w-6 text-green-500" />
+            </div>
+            <h3 className="text-lg font-medium mb-2">Health Tracking</h3>
+            <p className="text-muted-foreground">Monitor your health metrics and see trends over time</p>
+          </div>
+
+          <div className="bg-accent/20 p-6 rounded-lg text-center">
+            <div className="bg-purple-100 dark:bg-purple-900 p-3 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-4">
+              <Watch className="h-6 w-6 text-purple-500" />
+            </div>
+            <h3 className="text-lg font-medium mb-2">Device Integration</h3>
+            <p className="text-muted-foreground">Connect your smartwatch and other health devices</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Parse user data
+  let userData
+  try {
+    userData = JSON.parse(userCookie.value)
+  } catch (error) {
+    // If invalid JSON, redirect to login
+    redirect("/auth/signin")
+  }
+
+  const userId = userData?.id || ""
+  const userName = userData?.name || "User"
+
   return (
     <div className="p-4 md:p-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 md:gap-0">
         <div>
           <h1 className="text-2xl font-bold">Health Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back, Manasvi. Here's your health overview.</p>
+          <p className="text-muted-foreground">Welcome back, {userName}. Here's your health overview.</p>
         </div>
         <Button variant="outline" size="sm" className="rounded-full bg-blue-500 text-white hover:bg-blue-600">
           Dashboard
         </Button>
+      </div>
+
+      {/* SmartWatch Integration Section */}
+      <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950 dark:to-cyan-950 rounded-lg p-6 mb-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 md:gap-0">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
+              <Watch className="h-6 w-6 text-blue-500" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold">SmartWatch Connected</h2>
+              <p className="text-sm text-muted-foreground">Apple Watch Series 9 • Last sync: 2 min ago</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge variant="default" className="bg-green-500 hover:bg-green-600">
+              <Activity className="h-3 w-3 mr-1" />
+              Live
+            </Badge>
+            <Link href="/smartwatch">
+              <Button variant="outline" size="sm">
+                View Details
+              </Button>
+            </Link>
+          </div>
+        </div>
+
+        {/* Real-time Health Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <HealthMetricsSummary
+            userId={userId}
+            metricType="heart_rate"
+            title="Heart Rate"
+            icon={<Heart className="h-5 w-5 text-rose-500" />}
+            unit="bpm"
+            normalRange={{ min: 60, max: 100 }}
+            colorScheme="red"
+          />
+
+          <HealthMetricsSummary
+            userId={userId}
+            metricType="blood_oxygen"
+            title="Blood Oxygen"
+            icon={<Activity className="h-5 w-5 text-blue-500" />}
+            unit="%"
+            normalRange={{ min: 95, max: 100 }}
+            colorScheme="blue"
+          />
+
+          <HealthMetricsSummary
+            userId={userId}
+            metricType="steps"
+            title="Steps Today"
+            icon={<Activity className="h-5 w-5 text-green-500" />}
+            unit="steps"
+            colorScheme="green"
+          />
+
+          <HealthMetricsSummary
+            userId={userId}
+            metricType="sleep"
+            title="Sleep"
+            icon={<Activity className="h-5 w-5 text-purple-500" />}
+            unit="hours"
+            normalRange={{ min: 7, max: 9 }}
+            colorScheme="purple"
+          />
+        </div>
+
+        {/* Quick Actions */}
+        <div className="flex flex-wrap gap-3 mt-6">
+          <Link href="/smartwatch">
+            <Button className="gap-2 bg-blue-500 hover:bg-blue-600">
+              <Watch className="h-4 w-4" />
+              Sync Now
+            </Button>
+          </Link>
+          <Link href="/analytics">
+            <Button variant="outline" className="gap-2">
+              <Activity className="h-4 w-4" />
+              View Trends
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4 mb-8">

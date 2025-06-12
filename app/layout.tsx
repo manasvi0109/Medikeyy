@@ -29,7 +29,7 @@ export default function RootLayout({
           <AuthProvider>
             <div className="flex min-h-screen relative">
               <Sidebar />
-              <main className="flex-1 overflow-auto relative w-full md:w-[calc(100%-16rem)]">
+              <main className="flex-1 overflow-auto relative w-full">
                 <AnimatedBackground />
                 <div className="pt-16 md:pt-0">{children}</div>
                 <div className="fixed bottom-4 right-4 z-50">

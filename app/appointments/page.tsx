@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { format, addDays, isSameDay } from "date-fns"
+import { format, isSameDay } from "date-fns"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -35,19 +35,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-
-type Appointment = {
-  id: string
-  title: string
-  date: string
-  time: string
-  provider: string
-  location: string
-  type: string
-  notes: string
-  duration: string
-  reminder: string
-}
+import { useAuth } from "@/components/auth-provider"
+import { getAppointments, addAppointment, updateAppointment, deleteAppointment } from "../actions/appointments"
+import type { Appointment } from "../actions/appointments"
 
 export default function AppointmentsPage() {
   const [isAddAppointmentDialogOpen, setIsAddAppointmentDialogOpen] = useState(false)
@@ -57,6 +47,7 @@ export default function AppointmentsPage() {
   const [pastAppointments, setPastAppointments] = useState<Appointment[]>([])
   const [newAppointment, setNewAppointment] = useState<Appointment>({
     id: "",
+    user_id: "",
     title: "",
     date: "",
     time: "",
@@ -69,65 +60,74 @@ export default function AppointmentsPage() {
   })
   const [editingAppointment, setEditingAppointment] = useState<string | null>(null)
   const [calendarHighlights, setCalendarHighlights] = useState<Date[]>([])
+  const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
+  const { user } = useAuth()
 
   useEffect(() => {
-    // Load appointments from localStorage
-    const savedAppointments = localStorage.getItem("medikey_appointments")
-    if (savedAppointments) {
-      const parsed = JSON.parse(savedAppointments)
+    // Load appointments from database
+    async function loadAppointments() {
+      if (!user?.name) return
 
-      // Split into upcoming and past appointments
-      const now = new Date()
-      const upcoming: Appointment[] = []
-      const past: Appointment[] = []
+      setIsLoading(true)
+      try {
+        const result = await getAppointments(user.name)
 
-      parsed.forEach((appt: Appointment) => {
-        const apptDate = new Date(`${appt.date}T${appt.time}`)
-        if (apptDate > now) {
-          upcoming.push(appt)
+        if (result.success) {
+          // Split into upcoming and past appointments
+          const now = new Date()
+          const upcoming: Appointment[] = []
+          const past: Appointment[] = []
+
+          result.data.forEach((appt: Appointment) => {
+            const apptDate = new Date(`${appt.date}T${appt.time}`)
+            if (apptDate > now) {
+              upcoming.push(appt)
+            } else {
+              past.push(appt)
+            }
+          })
+
+          setAppointments(upcoming)
+          setPastAppointments(past)
         } else {
-          past.push(appt)
+          // If database fetch fails, try to load from localStorage as fallback
+          const savedAppointments = localStorage.getItem("medikey_appointments")
+          if (savedAppointments) {
+            const parsed = JSON.parse(savedAppointments)
+
+            // Split into upcoming and past appointments
+            const now = new Date()
+            const upcoming: Appointment[] = []
+            const past: Appointment[] = []
+
+            parsed.forEach((appt: Appointment) => {
+              const apptDate = new Date(`${appt.date}T${appt.time}`)
+              if (apptDate > now) {
+                upcoming.push(appt)
+              } else {
+                past.push(appt)
+              }
+            })
+
+            setAppointments(upcoming)
+            setPastAppointments(past)
+          }
         }
-      })
-
-      setAppointments(upcoming)
-      setPastAppointments(past)
+      } catch (error) {
+        console.error("Error loading appointments:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load appointments",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
     }
 
-    // Generate some sample appointments if none exist
-    else {
-      const sampleAppointments = [
-        {
-          id: "1",
-          title: "Annual Physical Exam",
-          date: format(addDays(new Date(), 7), "yyyy-MM-dd"),
-          time: "09:00",
-          provider: "Dr. Smith",
-          location: "City Medical Center",
-          type: "check-up",
-          notes: "Annual physical examination",
-          duration: "60",
-          reminder: "1day",
-        },
-        {
-          id: "2",
-          title: "Dental Checkup",
-          date: format(addDays(new Date(), 14), "yyyy-MM-dd"),
-          time: "14:30",
-          provider: "Dr. Johnson",
-          location: "Smile Dental Clinic",
-          type: "dental",
-          notes: "Regular dental cleaning and checkup",
-          duration: "45",
-          reminder: "1day",
-        },
-      ]
-
-      setAppointments(sampleAppointments)
-      localStorage.setItem("medikey_appointments", JSON.stringify(sampleAppointments))
-    }
-  }, [])
+    loadAppointments()
+  }, [user, toast])
 
   useEffect(() => {
     // Update calendar highlights when appointments change
@@ -168,36 +168,84 @@ export default function AppointmentsPage() {
     setSelectedDate(date)
   }
 
-  const handleAddAppointment = () => {
-    if (newAppointment.title && newAppointment.date && newAppointment.time && newAppointment.provider) {
-      const newAppt = {
-        ...newAppointment,
-        id: Date.now().toString(),
-      }
-
-      const updatedAppointments = [...appointments, newAppt]
-      setAppointments(updatedAppointments)
-      localStorage.setItem("medikey_appointments", JSON.stringify([...updatedAppointments, ...pastAppointments]))
-
-      setNewAppointment({
-        id: "",
-        title: "",
-        date: "",
-        time: "",
-        provider: "",
-        location: "",
-        type: "",
-        notes: "",
-        duration: "30",
-        reminder: "none",
-      })
-
+  const handleAddAppointment = async () => {
+    if (!user?.name) {
       toast({
-        title: "Appointment Scheduled",
-        description: `Your appointment for ${newAppt.title} has been scheduled.`,
+        title: "Authentication Required",
+        description: "Please sign in to schedule appointments",
+        variant: "destructive",
       })
+      return
+    }
 
-      setIsAddAppointmentDialogOpen(false)
+    if (newAppointment.title && newAppointment.date && newAppointment.time && newAppointment.provider) {
+      setIsLoading(true)
+
+      try {
+        const result = await addAppointment({
+          ...newAppointment,
+          user_id: user.name,
+        })
+
+        if (result.success) {
+          toast({
+            title: "Appointment Scheduled",
+            description: `Your appointment for ${newAppointment.title} has been scheduled.`,
+          })
+
+          // Refresh appointments
+          const updatedResult = await getAppointments(user.name)
+          if (updatedResult.success) {
+            // Split into upcoming and past appointments
+            const now = new Date()
+            const upcoming: Appointment[] = []
+            const past: Appointment[] = []
+
+            updatedResult.data.forEach((appt: Appointment) => {
+              const apptDate = new Date(`${appt.date}T${appt.time}`)
+              if (apptDate > now) {
+                upcoming.push(appt)
+              } else {
+                past.push(appt)
+              }
+            })
+
+            setAppointments(upcoming)
+            setPastAppointments(past)
+          }
+
+          setNewAppointment({
+            id: "",
+            user_id: "",
+            title: "",
+            date: "",
+            time: "",
+            provider: "",
+            location: "",
+            type: "",
+            notes: "",
+            duration: "30",
+            reminder: "none",
+          })
+
+          setIsAddAppointmentDialogOpen(false)
+        } else {
+          toast({
+            title: "Error",
+            description: result.error || "Failed to schedule appointment",
+            variant: "destructive",
+          })
+        }
+      } catch (error) {
+        console.error("Error adding appointment:", error)
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
     } else {
       toast({
         title: "Missing Information",
@@ -218,28 +266,117 @@ export default function AppointmentsPage() {
     }
   }
 
-  const handleSaveEdit = () => {
-    localStorage.setItem("medikey_appointments", JSON.stringify([...appointments, ...pastAppointments]))
+  const handleSaveEdit = async () => {
+    if (!user?.name || !editingAppointment) return
 
-    toast({
-      title: "Appointment Updated",
-      description: "Your appointment has been updated successfully.",
-    })
+    setIsLoading(true)
 
-    setIsEditMode(false)
-    setEditingAppointment(null)
-    setIsAddAppointmentDialogOpen(false)
+    try {
+      const appointmentToUpdate = appointments.find((a) => a.id === editingAppointment)
+      if (!appointmentToUpdate) return
+
+      const result = await updateAppointment(editingAppointment, appointmentToUpdate)
+
+      if (result.success) {
+        toast({
+          title: "Appointment Updated",
+          description: "Your appointment has been updated successfully.",
+        })
+
+        // Refresh appointments
+        const updatedResult = await getAppointments(user.name)
+        if (updatedResult.success) {
+          // Split into upcoming and past appointments
+          const now = new Date()
+          const upcoming: Appointment[] = []
+          const past: Appointment[] = []
+
+          updatedResult.data.forEach((appt: Appointment) => {
+            const apptDate = new Date(`${appt.date}T${appt.time}`)
+            if (apptDate > now) {
+              upcoming.push(appt)
+            } else {
+              past.push(appt)
+            }
+          })
+
+          setAppointments(upcoming)
+          setPastAppointments(past)
+        }
+
+        setIsEditMode(false)
+        setEditingAppointment(null)
+        setIsAddAppointmentDialogOpen(false)
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to update appointment",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error updating appointment:", error)
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handleDeleteAppointment = (id: string) => {
-    const updatedAppointments = appointments.filter((appt) => appt.id !== id)
-    setAppointments(updatedAppointments)
-    localStorage.setItem("medikey_appointments", JSON.stringify([...updatedAppointments, ...pastAppointments]))
+  const handleDeleteAppointment = async (id: string) => {
+    if (!user?.name) return
 
-    toast({
-      title: "Appointment Cancelled",
-      description: "Your appointment has been cancelled.",
-    })
+    setIsLoading(true)
+
+    try {
+      const result = await deleteAppointment(id)
+
+      if (result.success) {
+        toast({
+          title: "Appointment Cancelled",
+          description: "Your appointment has been cancelled.",
+        })
+
+        // Refresh appointments
+        const updatedResult = await getAppointments(user.name)
+        if (updatedResult.success) {
+          // Split into upcoming and past appointments
+          const now = new Date()
+          const upcoming: Appointment[] = []
+          const past: Appointment[] = []
+
+          updatedResult.data.forEach((appt: Appointment) => {
+            const apptDate = new Date(`${appt.date}T${appt.time}`)
+            if (apptDate > now) {
+              upcoming.push(appt)
+            } else {
+              past.push(appt)
+            }
+          })
+
+          setAppointments(upcoming)
+          setPastAppointments(past)
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to cancel appointment",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error deleting appointment:", error)
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const getDayClassName = (date: Date) => {
@@ -250,7 +387,7 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-6 appointments-theme">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold">Appointments</h1>
@@ -481,12 +618,12 @@ export default function AppointmentsPage() {
                   Cancel
                 </Button>
                 {isEditMode ? (
-                  <Button onClick={handleSaveEdit} className="bg-pink-500 hover:bg-pink-600">
-                    Update Appointment
+                  <Button onClick={handleSaveEdit} className="bg-pink-500 hover:bg-pink-600" disabled={isLoading}>
+                    {isLoading ? "Updating..." : "Update Appointment"}
                   </Button>
                 ) : (
-                  <Button onClick={handleAddAppointment} className="bg-pink-500 hover:bg-pink-600">
-                    Schedule
+                  <Button onClick={handleAddAppointment} className="bg-pink-500 hover:bg-pink-600" disabled={isLoading}>
+                    {isLoading ? "Scheduling..." : "Schedule"}
                   </Button>
                 )}
               </DialogFooter>
@@ -504,7 +641,12 @@ export default function AppointmentsPage() {
             </TabsList>
 
             <TabsContent value="upcoming">
-              {appointments.length > 0 ? (
+              {isLoading ? (
+                <div className="flex flex-col items-center justify-center h-64">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500 mb-4"></div>
+                  <p className="text-muted-foreground">Loading appointments...</p>
+                </div>
+              ) : appointments.length > 0 ? (
                 <div className="space-y-4">
                   {appointments
                     .sort(
@@ -542,7 +684,7 @@ export default function AppointmentsPage() {
                             variant="outline"
                             size="sm"
                             className="text-pink-500 border-pink-500/30 hover:bg-pink-500/10"
-                            onClick={() => handleEditAppointment(appointment.id)}
+                            onClick={() => handleEditAppointment(appointment.id!)}
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -567,7 +709,7 @@ export default function AppointmentsPage() {
                                 <AlertDialogCancel>Keep Appointment</AlertDialogCancel>
                                 <AlertDialogAction
                                   className="bg-red-500 hover:bg-red-600"
-                                  onClick={() => handleDeleteAppointment(appointment.id)}
+                                  onClick={() => handleDeleteAppointment(appointment.id!)}
                                 >
                                   Cancel Appointment
                                 </AlertDialogAction>
@@ -597,7 +739,12 @@ export default function AppointmentsPage() {
             </TabsContent>
 
             <TabsContent value="past">
-              {pastAppointments.length > 0 ? (
+              {isLoading ? (
+                <div className="flex flex-col items-center justify-center h-64">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500 mb-4"></div>
+                  <p className="text-muted-foreground">Loading appointments...</p>
+                </div>
+              ) : pastAppointments.length > 0 ? (
                 <div className="space-y-4">
                   {pastAppointments
                     .sort(
@@ -709,7 +856,7 @@ export default function AppointmentsPage() {
                             variant="ghost"
                             size="sm"
                             className="h-6 w-6 p-0"
-                            onClick={() => handleEditAppointment(appt.id)}
+                            onClick={() => handleEditAppointment(appt.id!)}
                           >
                             <Edit className="h-3 w-3" />
                           </Button>

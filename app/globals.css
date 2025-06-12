@@ -4,11 +4,11 @@
 
 @layer base {
   :root {
-    --background: 240 100% 98%;
+    --background: 210 100% 98%;
     --foreground: 222.2 84% 4.9%;
-    --card: 240 100% 98%;
+    --card: 210 100% 98%;
     --card-foreground: 222.2 84% 4.9%;
-    --popover: 240 100% 98%;
+    --popover: 210 100% 98%;
     --popover-foreground: 222.2 84% 4.9%;
     --primary: 221.2 83.2% 53.3%;
     --primary-foreground: 210 40% 98%;
@@ -25,9 +25,9 @@
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
 
-    /* Page-specific color schemes */
-    --records-primary: 14 100% 57%;
-    --records-secondary: 14 100% 95%;
+    /* Page-specific color schemes - More vibrant for light mode */
+    --records-primary: 175 84% 32%;
+    --records-secondary: 175 84% 95%;
     --analytics-primary: 45 93% 47%;
     --analytics-secondary: 45 93% 95%;
     --family-primary: 142 76% 36%;
@@ -62,8 +62,8 @@
     --ring: 224.3 76.3% 48%;
 
     /* Page-specific color schemes for dark mode */
-    --records-primary: 14 100% 57%;
-    --records-secondary: 14 100% 10%;
+    --records-primary: 175 84% 32%;
+    --records-secondary: 175 84% 10%;
     --analytics-primary: 45 93% 47%;
     --analytics-secondary: 45 93% 10%;
     --family-primary: 142 76% 36%;
@@ -115,6 +115,60 @@
 .emergency-theme {
   --background: var(--emergency-secondary);
   --accent: var(--emergency-secondary);
+}
+
+/* Colorful buttons for light mode */
+.light .btn-records {
+  @apply bg-teal-500 hover:bg-teal-600 text-white;
+}
+
+.light .btn-analytics {
+  @apply bg-yellow-500 hover:bg-yellow-600 text-white;
+}
+
+.light .btn-family {
+  @apply bg-green-500 hover:bg-green-600 text-white;
+}
+
+.light .btn-appointments {
+  @apply bg-pink-500 hover:bg-pink-600 text-white;
+}
+
+.light .btn-assistant {
+  @apply bg-orange-500 hover:bg-orange-600 text-white;
+}
+
+.light .btn-emergency {
+  @apply bg-red-500 hover:bg-red-600 text-white;
+}
+
+/* Colorful cards for light mode */
+.light .card-dashboard {
+  @apply bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 border-blue-200;
+}
+
+.light .card-records {
+  @apply bg-gradient-to-br from-teal-50 to-teal-100 hover:from-teal-100 hover:to-teal-200 border-teal-200;
+}
+
+.light .card-analytics {
+  @apply bg-gradient-to-br from-yellow-50 to-yellow-100 hover:from-yellow-100 hover:to-yellow-200 border-yellow-200;
+}
+
+.light .card-family {
+  @apply bg-gradient-to-br from-green-50 to-green-100 hover:from-green-100 hover:to-green-200 border-green-200;
+}
+
+.light .card-appointments {
+  @apply bg-gradient-to-br from-pink-50 to-pink-100 hover:from-pink-100 hover:to-pink-200 border-pink-200;
+}
+
+.light .card-assistant {
+  @apply bg-gradient-to-br from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-200 border-orange-200;
+}
+
+.light .card-emergency {
+  @apply bg-gradient-to-br from-red-50 to-red-100 hover:from-red-100 hover:to-red-200 border-red-200;
 }
 
 /* Responsive styles */
@@ -176,4 +230,111 @@
   padding-bottom: env(safe-area-inset-bottom);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
+}
+
+/* Enhanced button styles */
+.btn-primary {
+  @apply bg-blue-500 hover:bg-blue-600 text-white transition-all duration-200 
+         shadow-md hover:shadow-lg active:shadow-sm active:translate-y-0.5;
+}
+
+.btn-secondary {
+  @apply bg-gray-200 hover:bg-gray-300 text-gray-800 transition-all duration-200
+         shadow-sm hover:shadow-md active:shadow-none active:translate-y-0.5;
+}
+
+.btn-success {
+  @apply bg-green-500 hover:bg-green-600 text-white transition-all duration-200
+         shadow-md hover:shadow-lg active:shadow-sm active:translate-y-0.5;
+}
+
+.btn-danger {
+  @apply bg-red-500 hover:bg-red-600 text-white transition-all duration-200
+         shadow-md hover:shadow-lg active:shadow-sm active:translate-y-0.5;
+}
+
+.btn-warning {
+  @apply bg-yellow-500 hover:bg-yellow-600 text-white transition-all duration-200
+         shadow-md hover:shadow-lg active:shadow-sm active:translate-y-0.5;
+}
+
+.btn-info {
+  @apply bg-cyan-500 hover:bg-cyan-600 text-white transition-all duration-200
+         shadow-md hover:shadow-lg active:shadow-sm active:translate-y-0.5;
+}
+
+/* Enhanced form styles */
+.form-input {
+  @apply border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+}
+
+.form-label {
+  @apply block text-sm font-medium text-gray-700 mb-1;
+}
+
+.form-error {
+  @apply text-red-500 text-sm mt-1;
+}
+
+.form-success {
+  @apply text-green-500 text-sm mt-1;
+}
+
+/* Dashboard specific styles */
+.dashboard-stat {
+  @apply flex flex-col p-4 rounded-lg border transition-all duration-200 hover:shadow-md;
+}
+
+.dashboard-stat-value {
+  @apply text-2xl font-bold;
+}
+
+.dashboard-stat-label {
+  @apply text-sm text-gray-500;
+}
+
+.dashboard-stat-icon {
+  @apply text-xl text-gray-400;
+}
+
+/* Health metrics specific styles */
+.metric-normal {
+  @apply text-green-500;
+}
+
+.metric-warning {
+  @apply text-yellow-500;
+}
+
+.metric-danger {
+  @apply text-red-500;
+}
+
+.metric-info {
+  @apply text-blue-500;
+}
+
+/* Colorful backgrounds for sections */
+.section-records {
+  @apply bg-gradient-to-br from-teal-50 to-teal-100;
+}
+
+.section-analytics {
+  @apply bg-gradient-to-br from-yellow-50 to-yellow-100;
+}
+
+.section-family {
+  @apply bg-gradient-to-br from-green-50 to-green-100;
+}
+
+.section-appointments {
+  @apply bg-gradient-to-br from-pink-50 to-pink-100;
+}
+
+.section-assistant {
+  @apply bg-gradient-to-br from-orange-50 to-orange-100;
+}
+
+.section-emergency {
+  @apply bg-gradient-to-br from-red-50 to-red-100;
 }

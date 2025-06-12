@@ -4,7 +4,13 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { useRouter, usePathname } from "next/navigation"
 
 type User = {
+  id: string
   name: string
+  email: string
+  fullName?: string
+  initial?: string
+  profileImage?: string | null
+  patientId?: string
   [key: string]: any
 }
 
@@ -22,6 +28,9 @@ const AuthContext = createContext<AuthContextType>({
   signOut: () => {},
 })
 
+// List of public routes that don't require authentication
+const PUBLIC_ROUTES = ["/auth/signin", "/auth/signup", "/auth/signout", "/"]
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -33,14 +42,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedUser = localStorage.getItem("medikey_user") || sessionStorage.getItem("medikey_user")
 
     if (storedUser) {
-      setUser(JSON.parse(storedUser))
+      try {
+        const userData = JSON.parse(storedUser)
+        setUser(userData)
+      } catch (error) {
+        console.error("Failed to parse user data:", error)
+        localStorage.removeItem("medikey_user")
+        sessionStorage.removeItem("medikey_user")
+      }
     }
 
     setIsLoading(false)
 
     // Redirect to login if accessing protected route without auth
-    const isAuthRoute = pathname?.startsWith("/auth/")
-    if (!storedUser && !isAuthRoute && pathname !== "/") {
+    const isPublicRoute = PUBLIC_ROUTES.includes(pathname || "")
+    if (!storedUser && !isPublicRoute) {
       router.push("/auth/signin")
     }
   }, [pathname, router])
@@ -57,11 +73,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (foundUser) {
         // Create user session
         const userData = {
+          id: foundUser.id || username,
           name: username,
           fullName: foundUser.fullName || username,
-          email: foundUser.email || "",
+          email: foundUser.email || `${username}@example.com`,
           initial: username.charAt(0).toUpperCase(),
           lastLogin: new Date().toISOString(),
+          patientId:
+            foundUser.patientId ||
+            `MK-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
         }
 
         localStorage.setItem("medikey_user", JSON.stringify(userData))

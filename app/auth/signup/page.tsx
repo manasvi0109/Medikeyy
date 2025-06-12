@@ -2,16 +2,22 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { createUser } from "@/app/actions/auth"
+import {
+  createUser,
+  checkUsernameAvailability,
+  checkEmailAvailability,
+  clearAllData,
+  getAllUsers,
+} from "@/app/actions/auth"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2 } from "lucide-react"
+import { Loader2, Check, X, Trash2, Users } from "lucide-react"
 
 export default function SignUpPage() {
   const router = useRouter()
@@ -25,15 +31,137 @@ export default function SignUpPage() {
     agreeTerms: false,
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [isClearing, setIsClearing] = useState(false)
+  const [isCheckingUsers, setIsCheckingUsers] = useState(false)
   const [error, setError] = useState("")
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle")
+  const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "available" | "taken">("idle")
+
+  // Debounced username checking
+  const debouncedCheckUsername = useCallback(
+    debounce(async (username: string) => {
+      if (username.length >= 3) {
+        setUsernameStatus("checking")
+        try {
+          const result = await checkUsernameAvailability(username)
+          setUsernameStatus(result.available ? "available" : "taken")
+        } catch (error) {
+          console.error("Error checking username:", error)
+          setUsernameStatus("idle")
+        }
+      }
+    }, 500),
+    [],
+  )
+
+  // Debounced email checking
+  const debouncedCheckEmail = useCallback(
+    debounce(async (email: string) => {
+      if (email.includes("@")) {
+        setEmailStatus("checking")
+        try {
+          const result = await checkEmailAvailability(email)
+          setEmailStatus(result.available ? "available" : "taken")
+        } catch (error) {
+          console.error("Error checking email:", error)
+          setEmailStatus("idle")
+        }
+      }
+    }, 500),
+    [],
+  )
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData({ ...formData, [name]: value })
+
+    // Clear error when user starts typing
+    if (error) setError("")
+
+    // Check username availability
+    if (name === "username") {
+      if (value.length >= 3) {
+        debouncedCheckUsername(value)
+      } else {
+        setUsernameStatus("idle")
+      }
+    }
+
+    // Check email availability
+    if (name === "email") {
+      if (value.includes("@")) {
+        debouncedCheckEmail(value)
+      } else {
+        setEmailStatus("idle")
+      }
+    }
   }
 
   const handleCheckboxChange = (checked: boolean) => {
     setFormData({ ...formData, agreeTerms: checked })
+  }
+
+  const handleClearData = async () => {
+    if (!confirm("Are you sure you want to clear ALL data from the database? This cannot be undone.")) {
+      return
+    }
+
+    setIsClearing(true)
+    try {
+      const result = await clearAllData()
+      if (result.success) {
+        toast({
+          title: "Database cleared",
+          description: result.message,
+        })
+        // Reset form validation states
+        setUsernameStatus("idle")
+        setEmailStatus("idle")
+        setError("")
+      } else {
+        toast({
+          title: "Error",
+          description: result.error,
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to clear database",
+        variant: "destructive",
+      })
+    } finally {
+      setIsClearing(false)
+    }
+  }
+
+  const handleCheckUsers = async () => {
+    setIsCheckingUsers(true)
+    try {
+      const result = await getAllUsers()
+      if (result.success) {
+        console.log("Current users in database:", result.users)
+        toast({
+          title: "Users checked",
+          description: `Found ${result.users.length} users in database. Check console for details.`,
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: result.error,
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to check users",
+        variant: "destructive",
+      })
+    } finally {
+      setIsCheckingUsers(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,6 +172,12 @@ export default function SignUpPage() {
     // Basic validation
     if (!formData.username || !formData.email || !formData.password || !formData.fullName) {
       setError("All fields are required")
+      setIsLoading(false)
+      return
+    }
+
+    if (formData.username.length < 3) {
+      setError("Username must be at least 3 characters long")
       setIsLoading(false)
       return
     }
@@ -62,6 +196,18 @@ export default function SignUpPage() {
 
     if (!formData.agreeTerms) {
       setError("You must agree to the terms and conditions")
+      setIsLoading(false)
+      return
+    }
+
+    if (usernameStatus === "taken") {
+      setError("Username is already taken. Please choose a different one.")
+      setIsLoading(false)
+      return
+    }
+
+    if (emailStatus === "taken") {
+      setError("Email is already registered. Please use a different email.")
       setIsLoading(false)
       return
     }
@@ -106,6 +252,32 @@ export default function SignUpPage() {
     }
   }
 
+  const getUsernameIcon = () => {
+    switch (usernameStatus) {
+      case "checking":
+        return <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+      case "available":
+        return <Check className="h-4 w-4 text-green-500" />
+      case "taken":
+        return <X className="h-4 w-4 text-red-500" />
+      default:
+        return null
+    }
+  }
+
+  const getEmailIcon = () => {
+    switch (emailStatus) {
+      case "checking":
+        return <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+      case "available":
+        return <Check className="h-4 w-4 text-green-500" />
+      case "taken":
+        return <X className="h-4 w-4 text-red-500" />
+      default:
+        return null
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-950 to-black">
       <div className="max-w-md w-full mx-auto p-8">
@@ -122,6 +294,48 @@ export default function SignUpPage() {
           <p className="text-gray-400">Start managing your medical records securely</p>
         </div>
 
+        {/* Debug buttons for development */}
+        <div className="mb-4 flex gap-2 justify-center">
+          <Button
+            onClick={handleCheckUsers}
+            variant="outline"
+            size="sm"
+            disabled={isCheckingUsers}
+            className="text-xs bg-blue-500/10 border-blue-500/50 text-blue-400 hover:bg-blue-500/20"
+          >
+            {isCheckingUsers ? (
+              <>
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                Checking...
+              </>
+            ) : (
+              <>
+                <Users className="mr-1 h-3 w-3" />
+                Check Users
+              </>
+            )}
+          </Button>
+          <Button
+            onClick={handleClearData}
+            variant="outline"
+            size="sm"
+            disabled={isClearing}
+            className="text-xs bg-red-500/10 border-red-500/50 text-red-400 hover:bg-red-500/20"
+          >
+            {isClearing ? (
+              <>
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                Clearing...
+              </>
+            ) : (
+              <>
+                <Trash2 className="mr-1 h-3 w-3" />
+                Clear All Data
+              </>
+            )}
+          </Button>
+        </div>
+
         {error && (
           <div className="bg-red-500/10 border border-red-500/50 text-red-500 px-4 py-3 rounded mb-4">{error}</div>
         )}
@@ -132,15 +346,20 @@ export default function SignUpPage() {
               <Label htmlFor="username" className="text-white">
                 Username
               </Label>
-              <Input
-                id="username"
-                name="username"
-                placeholder="Enter your username"
-                value={formData.username}
-                onChange={handleInputChange}
-                className="bg-blue-950/50 border-blue-800 text-white placeholder:text-gray-400"
-                disabled={isLoading}
-              />
+              <div className="relative">
+                <Input
+                  id="username"
+                  name="username"
+                  placeholder="Enter your username"
+                  value={formData.username}
+                  onChange={handleInputChange}
+                  className="bg-blue-950/50 border-blue-800 text-white placeholder:text-gray-400 pr-10"
+                  disabled={isLoading}
+                />
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">{getUsernameIcon()}</div>
+              </div>
+              {usernameStatus === "taken" && <p className="text-red-400 text-sm mt-1">Username is already taken</p>}
+              {usernameStatus === "available" && <p className="text-green-400 text-sm mt-1">Username is available</p>}
             </div>
             <div>
               <Label htmlFor="fullName" className="text-white">
@@ -160,16 +379,21 @@ export default function SignUpPage() {
               <Label htmlFor="email" className="text-white">
                 Email
               </Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="Enter your email"
-                value={formData.email}
-                onChange={handleInputChange}
-                className="bg-blue-950/50 border-blue-800 text-white placeholder:text-gray-400"
-                disabled={isLoading}
-              />
+              <div className="relative">
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className="bg-blue-950/50 border-blue-800 text-white placeholder:text-gray-400 pr-10"
+                  disabled={isLoading}
+                />
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">{getEmailIcon()}</div>
+              </div>
+              {emailStatus === "taken" && <p className="text-red-400 text-sm mt-1">Email is already registered</p>}
+              {emailStatus === "available" && <p className="text-green-400 text-sm mt-1">Email is available</p>}
             </div>
             <div>
               <Label htmlFor="password" className="text-white">
@@ -243,4 +467,13 @@ export default function SignUpPage() {
       </div>
     </div>
   )
+}
+
+// Debounce utility function
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
+  let timeout: NodeJS.Timeout
+  return ((...args: any[]) => {
+    clearTimeout(timeout)
+    timeout = setTimeout(() => func(...args), wait)
+  }) as T
 }

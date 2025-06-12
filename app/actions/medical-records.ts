@@ -14,13 +14,15 @@ export type MedicalRecord = {
   file_url?: string
   file_name?: string
   file_size?: number
+  patient_id?: string
 }
 
 export async function getMedicalRecords(userId: string) {
   try {
-    const records = await executeQuery("SELECT * FROM medical_records WHERE user_id = $1 ORDER BY record_date DESC", [
-      userId,
-    ])
+    const records = await executeQuery(
+      "SELECT * FROM medical_records WHERE user_id = $1 OR patient_id = $1 ORDER BY record_date DESC",
+      [userId],
+    )
     return { success: true, data: records }
   } catch (error) {
     console.error("Error fetching medical records:", error)
@@ -31,7 +33,7 @@ export async function getMedicalRecords(userId: string) {
 export async function getMedicalRecordsByType(userId: string, recordType: string) {
   try {
     const records = await executeQuery(
-      "SELECT * FROM medical_records WHERE user_id = $1 AND record_type = $2 ORDER BY record_date DESC",
+      "SELECT * FROM medical_records WHERE (user_id = $1 OR patient_id = $1) AND record_type = $2 ORDER BY record_date DESC",
       [userId, recordType],
     )
     return { success: true, data: records }
@@ -43,10 +45,19 @@ export async function getMedicalRecordsByType(userId: string, recordType: string
 
 export async function addMedicalRecord(record: MedicalRecord) {
   try {
+    // Get patient_id if available
+    let patientId = record.patient_id
+    if (!patientId) {
+      const userResult = await executeQuery("SELECT patient_id FROM users WHERE username = $1", [record.user_id])
+      if (userResult.length > 0) {
+        patientId = userResult[0].patient_id
+      }
+    }
+
     const result = await executeQuery(
       `INSERT INTO medical_records 
-       (user_id, title, record_type, record_date, provider, description, file_url, file_name, file_size) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+       (user_id, title, record_type, record_date, provider, description, file_url, file_name, file_size, patient_id) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
        RETURNING id`,
       [
         record.user_id,
@@ -58,6 +69,7 @@ export async function addMedicalRecord(record: MedicalRecord) {
         record.file_url || null,
         record.file_name || null,
         record.file_size || null,
+        patientId || null,
       ],
     )
 
