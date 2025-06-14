@@ -6,7 +6,6 @@ import { revalidatePath } from "next/cache"
 export type FamilyMember = {
   id?: number
   user_id: string
-  patient_id?: string
   name: string
   relationship: string
   dob?: string
@@ -18,10 +17,7 @@ export type FamilyMember = {
 
 export async function getFamilyMembers(userId: string) {
   try {
-    const members = await executeQuery(
-      "SELECT * FROM family_members WHERE user_id = $1 OR patient_id = $1 ORDER BY name",
-      [userId],
-    )
+    const members = await executeQuery("SELECT * FROM family_members WHERE user_id = $1 ORDER BY name", [userId])
     return { success: true, data: members }
   } catch (error) {
     console.error("Error fetching family members:", error)
@@ -31,23 +27,13 @@ export async function getFamilyMembers(userId: string) {
 
 export async function addFamilyMember(member: FamilyMember) {
   try {
-    // Get patient_id if available
-    let patientId = member.patient_id
-    if (!patientId) {
-      const userResult = await executeQuery("SELECT patient_id FROM users WHERE username = $1", [member.user_id])
-      if (userResult.length > 0) {
-        patientId = userResult[0].patient_id
-      }
-    }
-
     const result = await executeQuery(
       `INSERT INTO family_members 
-       (user_id, patient_id, name, relationship, dob, gender, blood_type, allergies, conditions) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+       (user_id, name, relationship, dob, gender, blood_type, allergies, conditions) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
        RETURNING id`,
       [
         member.user_id,
-        patientId || null,
         member.name,
         member.relationship,
         member.dob || null,
